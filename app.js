@@ -618,6 +618,15 @@ $("#customAdd").addEventListener("click",()=>{
   saveProg();renderProgEditor();closeSheet();toast("Добавлено — настрой подходы и вес");
 });
 
+/* looping technique animation, shown straight from the ExerciseDB server (nothing is copied here) */
+function animBox(x){
+  const box=el("div","anim");
+  const im=el("img");im.alt=x.name+": анимация техники";im.decoding="async";
+  im.src="https://static.exercisedb.dev/media/"+x.edb+".gif";
+  im.addEventListener("error",()=>{const alt=x.yt?videoBox(x):null;if(alt)box.replaceWith(alt);else{im.src=imgSrc(x.id,0);box.classList.add("photo");}},{once:true});
+  box.append(im);
+  return box;
+}
 /* technique video: a light preview first, the YouTube player only after a tap */
 function videoBox(x){
   const box=el("div","vid"+(x.ys?" vert":""));
@@ -640,7 +649,8 @@ function openInfo(libId){
   const x=LIBMAP[libId];if(!x)return;
   const b=$("#infoBody");b.textContent="";
   $("#infoBarTitle").textContent=x.group;
-  if(x.yt)b.append(videoBox(x));
+  if(x.edb)b.append(animBox(x));
+  else if(x.yt)b.append(videoBox(x));
   else{
     const demo=el("button","demo");demo.type="button";demo.setAttribute("aria-label","Пауза или воспроизведение");
     const a=el("img","a");a.src=imgSrc(x.id,0);a.alt=x.name+": начало движения";
@@ -662,12 +672,12 @@ function openInfo(libId){
     add.addEventListener("click",()=>{if(addFromLib(x)){add.disabled=true;add.textContent="✓ Добавлено";if(stack.indexOf("libSheet")>=0)renderLibList();}});
     b.append(add);
   }
-  const yt=el("a","btn wide yt",x.yt?"Открыть видео в YouTube":"Найти видео техники на YouTube");
+  const yt=el("a","btn wide yt",x.yt?"Видео-разбор на YouTube":"Найти видео техники на YouTube");
   yt.href=x.yt?"https://www.youtube.com/watch?v="+x.yt:"https://www.youtube.com/results?search_query="+encodeURIComponent(x.name+" техника выполнения");
   yt.target="_blank";yt.rel="noopener";
   yt.addEventListener("click",ev=>{try{if(tg&&tg.openLink){ev.preventDefault();tg.openLink(yt.href);}}catch(e){}});
   b.append(yt);
-  b.append(el("p","credit",x.yt?"Видео: «"+(x.ych||"YouTube")+"» на YouTube.":"Фото: Free Exercise DB, общественное достояние."));
+  b.append(el("p","credit",x.edb?"Анимация: ExerciseDB.":(x.yt?"Видео: «"+(x.ych||"YouTube")+"» на YouTube.":"Фото: Free Exercise DB, общественное достояние.")));
   openSheet("infoSheet");
   $("#infoSheet .body").scrollTop=0;
 }

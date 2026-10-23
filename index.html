@@ -41,7 +41,7 @@ button{font:inherit;color:inherit}
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 .top .wrap{padding-block:8px}
 .tabs{display:flex;background:var(--sunk);border-radius:11px;padding:3px;gap:3px}
-.tabs button{flex:1;border:0;background:transparent;color:var(--muted);font-weight:500;font-size:14px;padding:8px 6px;border-radius:9px;cursor:pointer}
+.tabs button{flex:1;min-width:0;border:0;background:transparent;color:var(--muted);font-weight:500;font-size:13px;padding:8px 2px;border-radius:9px;cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgb(0 0 0 / .1)}
 
 main{padding-block:16px 48px}
@@ -154,6 +154,32 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
 .sw.done{background:var(--accent)} .sw.today{box-shadow:inset 0 0 0 1.5px var(--fg)}
 
+/* program editor */
+.pe{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.pe-top{display:flex;gap:8px;align-items:center}
+.pe-top .exnum{width:18px}
+.pe-name{flex:1;min-width:0;font:600 16px var(--body);color:var(--fg);background:var(--sunk);border:1px solid transparent;border-radius:9px;height:40px;padding:0 10px}
+.pe-name:focus{outline:2px solid var(--accent);outline-offset:0;background:var(--surface)}
+.mini{flex:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:16px;line-height:1;cursor:pointer;color:var(--muted)}
+.mini:disabled{opacity:.3;cursor:default}
+.pe-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pf{display:flex;flex-direction:column;gap:3px;min-width:0}
+.pf span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.pf input,.pf select{width:100%;min-width:0;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:500 16px var(--body);text-align:center;padding:0 4px;-webkit-appearance:none;appearance:none}
+.pf select{text-align-last:center;font-size:14px}
+.pf .pair{display:flex;align-items:center;gap:4px}
+.pf .pair input{flex:1}
+.daysrow{display:flex;gap:6px;flex-wrap:wrap}
+.daysrow button{flex:1;min-width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:500;cursor:pointer;color:var(--muted)}
+.daysrow button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.wide{align-self:stretch;padding:12px 14px;border-radius:12px;font-weight:500}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.share textarea{width:100%;min-height:84px;border-radius:10px;border:1px solid var(--line);background:var(--sunk);color:var(--fg);font:16px/1.4 ui-monospace,Menlo,monospace;padding:10px;resize:vertical;word-break:break-all}
+.share{display:flex;flex-direction:column;gap:8px}
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap}
+.rowbtns .btn{flex:1}
+.banner{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--accent-soft);color:var(--fg);border-radius:12px;padding:10px 12px;font-size:13px}
+.banner .linkbtn{white-space:nowrap}
 #toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:14px;z-index:20;transition:opacity .2s}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}}
 </style>
@@ -165,6 +191,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <button type="button" role="tab" id="t-log" data-view="log" aria-selected="true">Тренировка</button>
       <button type="button" role="tab" id="t-progress" data-view="progress" aria-selected="false">Прогресс</button>
       <button type="button" role="tab" id="t-year" data-view="year" aria-selected="false">Год</button>
+      <button type="button" role="tab" id="t-prog" data-view="prog" aria-selected="false">Программа</button>
     </nav>
   </div>
 </header>
@@ -186,6 +213,10 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <button type="button" class="linkbtn" id="toToday" hidden>К сегодняшнему дню</button>
     </div>
 
+    <div class="banner" id="progBanner" hidden>
+      <span>Это стандартная программа фулбоди. Свою можно собрать во вкладке «Программа».</span>
+      <button type="button" class="linkbtn" id="toProg">Настроить</button>
+    </div>
     <div class="bw">
       <label for="bwInput">Вес тела утром</label>
       <span class="unitfield"><input class="num" id="bwInput" inputmode="decimal" autocomplete="off" placeholder="—"> кг</span>
@@ -223,8 +254,45 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <div style="text-align:center"><span class="eyebrow" id="yearCount">0 тренировок</span><h2 id="yearTitle">2026</h2></div>
       <button type="button" class="iconbtn" id="nextYear" aria-label="Следующий год">›</button>
     </div>
-    <div class="legend"><span><i class="sw done"></i>тренировка</span><span><i class="sw today"></i>сегодня</span><span>Пн, ср, пт — дни по плану. Нажми на день, чтобы открыть или заполнить его.</span></div>
+    <div class="legend"><span><i class="sw done"></i>тренировка</span><span><i class="sw today"></i>сегодня</span><span id="planLegend">Нажми на день, чтобы открыть или заполнить его.</span></div>
     <div class="months" id="months"></div>
+  </section>
+
+  <!-- PROGRAM -->
+  <section id="v-prog" role="tabpanel" aria-labelledby="t-prog" hidden>
+    <div>
+      <span class="eyebrow">Твоя программа</span>
+      <h2>Упражнения</h2>
+    </div>
+    <div class="statusline"><span class="status" id="progStatus">Меняй что угодно — сохраняется само. История тренировок не пропадёт.</span></div>
+    <div class="card">
+      <span class="eyebrow">Дни тренировок</span>
+      <div class="daysrow" id="daysRow" role="group" aria-label="Дни тренировок"></div>
+    </div>
+    <div class="exlist" id="peList"></div>
+    <button type="button" class="btn wide" id="peAdd">+ Добавить упражнение</button>
+
+    <div class="card share">
+      <span class="eyebrow">Поделиться программой</span>
+      <p class="target" style="margin:0">Отправь код другу. Он вставит его у себя в этой вкладке, и у него будет такая же программа, а записи — свои.</p>
+      <div class="rowbtns">
+        <button type="button" class="btn primary" id="shareSend">Отправить в Telegram</button>
+        <button type="button" class="btn" id="shareCopy">Скопировать код</button>
+      </div>
+      <textarea id="shareOut" readonly hidden aria-label="Код программы"></textarea>
+    </div>
+
+    <div class="card share">
+      <span class="eyebrow">Загрузить программу друга</span>
+      <textarea id="importIn" placeholder="Вставь сюда код программы" aria-label="Код программы друга"></textarea>
+      <button type="button" class="btn" id="importBtn">Загрузить</button>
+      <div class="confirm" id="importConfirm" hidden>
+        <span id="importMsg"></span>
+        <button type="button" class="btn primary" id="importYes">Заменить</button>
+        <button type="button" class="btn" id="importNo">Отмена</button>
+      </div>
+    </div>
+    <button type="button" class="linkbtn" id="peReset" style="align-self:center">Вернуть стандартную программу</button>
   </section>
 </main>
 <div id="toast" role="status" aria-live="polite" hidden></div>
@@ -232,17 +300,40 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 <script>
 (function(){
 "use strict";
-const EX=[
-  {id:"legpress", name:"Жим ногами", lo:10, hi:12, step:5, start:80, unit:"кг"},
-  {id:"incline", name:"Жим гантелей на наклонной", lo:8, hi:12, step:2, start:14, unit:"кг в руке"},
-  {id:"rdl", name:"Румынская тяга с гантелями", lo:10, hi:10, step:2, start:16, unit:"кг в руке"},
-  {id:"latpull", name:"Тяга верхнего блока", lo:10, hi:12, step:5, start:40, unit:"кг"},
-  {id:"hipthrust", name:"Ягодичный мост со скамьи", lo:10, hi:12, step:2, start:20, unit:"кг"},
-  {id:"row", name:"Тяга нижнего блока", lo:10, hi:12, step:5, start:35, unit:"кг"},
-  {id:"lateral", name:"Махи гантелями в стороны", lo:12, hi:15, step:1, start:5, unit:"кг в руке"},
-  {id:"biceps", name:"Бицепс на блоке", lo:10, hi:12, step:2.5, start:15, unit:"кг"},
-  {id:"triceps", name:"Трицепс на блоке", lo:10, hi:12, step:2.5, start:20, unit:"кг"}
+const DEFAULT_EX=[
+  {id:"legpress", name:"Жим ногами", sets:3, lo:10, hi:12, step:5, start:80, unit:"кг"},
+  {id:"incline", name:"Жим гантелей на наклонной", sets:3, lo:8, hi:12, step:2, start:14, unit:"кг в руке"},
+  {id:"rdl", name:"Румынская тяга с гантелями", sets:3, lo:10, hi:10, step:2, start:16, unit:"кг в руке"},
+  {id:"latpull", name:"Тяга верхнего блока", sets:3, lo:10, hi:12, step:5, start:40, unit:"кг"},
+  {id:"hipthrust", name:"Ягодичный мост со скамьи", sets:3, lo:10, hi:12, step:2, start:20, unit:"кг"},
+  {id:"row", name:"Тяга нижнего блока", sets:3, lo:10, hi:12, step:5, start:35, unit:"кг"},
+  {id:"lateral", name:"Махи гантелями в стороны", sets:3, lo:12, hi:15, step:1, start:5, unit:"кг в руке"},
+  {id:"biceps", name:"Бицепс на блоке", sets:3, lo:10, hi:12, step:2.5, start:15, unit:"кг"},
+  {id:"triceps", name:"Трицепс на блоке", sets:3, lo:10, hi:12, step:2.5, start:20, unit:"кг"}
 ];
+const UNITS=["кг","кг в руке","свой вес + кг"];
+const DAY_S=["пн","вт","ср","чт","пт","сб","вс"];
+const defaultProg=()=>({days:[0,2,4],ex:DEFAULT_EX.map(e=>Object.assign({},e)),saved:false});
+let PROG=defaultProg();
+let EX=PROG.ex;
+const MAX_EX=20;
+const clampNum=(v,lo,hi,def)=>{v=Number(v);return isFinite(v)?Math.min(hi,Math.max(lo,v)):def;};
+function cleanProg(p){
+  const out={days:[],ex:[],saved:true};
+  if(p&&Array.isArray(p.days))out.days=p.days.filter(d=>Number.isInteger(d)&&d>=0&&d<7).filter((d,i,a)=>a.indexOf(d)===i).sort();
+  const seen={};
+  (p&&Array.isArray(p.ex)?p.ex:[]).slice(0,MAX_EX).forEach(e=>{
+    if(!e)return;
+    const name=String(e.name||"").trim().slice(0,60)||"Упражнение";
+    let id=String(e.id||"").replace(/[^A-Za-z0-9_]/g,"").slice(0,24)||("x"+Math.random().toString(36).slice(2,8));
+    while(seen[id])id+="2";seen[id]=1;
+    const lo=Math.round(clampNum(e.lo,1,100,10)),hi=Math.max(lo,Math.round(clampNum(e.hi,1,100,12)));
+    out.ex.push({id:id,name:name,sets:Math.round(clampNum(e.sets,1,6,3)),lo:lo,hi:hi,
+      step:clampNum(e.step,0,100,2.5),start:clampNum(e.start,0,1000,0),unit:UNITS.indexOf(e.unit)>=0?e.unit:"кг"});
+  });
+  return out;
+}
+function setProg(p){PROG=p;EX=PROG.ex;}
 const MON=["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
 const MON_G=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
 const MON_IN=["январе","феврале","марте","апреле","мае","июне","июле","августе","сентябре","октябре","ноябре","декабре"];
@@ -301,27 +392,30 @@ function persist(date,body){
 
 /* ---------- helpers on data ---------- */
 /* Old records kept one weight per exercise; new ones keep a weight per set. */
-function norm(x){
+const seq=n=>Array.from({length:n},(_,i)=>i);
+function norm(x,n){
   if(!x)return null;
   const r=Array.isArray(x.r)?x.r:[];
-  const w=Array.isArray(x.w)?x.w:[x.w,x.w,x.w];
-  return {w:[0,1,2].map(i=>w[i]==null?null:w[i]),r:[0,1,2].map(i=>r[i]==null?null:r[i])};
+  const len=Math.max(n||0,r.length,Array.isArray(x.w)?x.w.length:0,1);
+  const w=Array.isArray(x.w)?x.w:seq(len).map(()=>x.w);
+  return {w:seq(len).map(i=>w[i]==null?null:w[i]),r:seq(len).map(i=>r[i]==null?null:r[i])};
 }
-function prevEntry(id,date){
+function prevEntry(id,date,n){
   let best=null;
   for(const [d,doc] of S.docs){
     if(d>=date)continue;
     const x=doc.ex&&doc.ex[id];
-    if(hasSets(x)&&(!best||d>best.d))best=Object.assign({d:d},norm(x));
+    if(hasSets(x)&&(!best||d>best.d))best=Object.assign({d:d},norm(x,n));
   }
   return best;
 }
 /* Each set progresses on its own: hit the top of the rep range last time, that set gets +step. */
 function suggestSets(e,prev){
-  if(!prev)return [0,1,2].map(()=>({w:e.start,up:false}));
+  if(!prev)return seq(e.sets).map(()=>({w:e.start,up:false}));
   const base=prev.w.find(v=>v!=null);
-  return [0,1,2].map(i=>{
-    const w=prev.w[i]!=null?prev.w[i]:(base!=null?base:e.start);
+  let lastW=base!=null?base:e.start;
+  return seq(e.sets).map(i=>{
+    const w=prev.w[i]!=null?prev.w[i]:lastW;lastW=w;
     const up=prev.r[i]!=null&&prev.r[i]>=e.hi;
     return {w:up?Math.round((w+e.step)*100)/100:w,up:up};
   });
@@ -329,7 +423,7 @@ function suggestSets(e,prev){
 function topWeight(x){let m=null;x.r.forEach((r,i)=>{if(r!=null&&x.w[i]!=null&&(m==null||x.w[i]>m))m=x.w[i];});return m;}
 function volume(x){let s=0,any=false;x.r.forEach((r,i)=>{if(r!=null&&x.w[i]!=null){s+=r*x.w[i];any=true;}});return any?Math.round(s):null;}
 function setsText(x){return x.r.map((r,i)=>r==null?null:(x.w[i]==null?"—":fmt(x.w[i]))+"×"+r).filter(Boolean).join(" · ");}
-const targetText=e=>"3 × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+" · "+e.unit;
+const targetText=e=>e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+" · "+e.unit;
 
 /* ---------- status / toast ---------- */
 function setStatus(kind,text){const el=$("#saveStatus");el.className="status"+(kind?" "+kind:"");el.textContent=text;}
@@ -353,11 +447,13 @@ function renderLog(){
   $("#delBtn").hidden=!doc;
   $("#delConfirm").hidden=true;
 
+  $("#progBanner").hidden=!!PROG.saved;
   const list=$("#exList");list.textContent="";
+  if(!EX.length){const em=document.createElement("li");em.className="empty";em.textContent="В программе пока нет упражнений. Добавь их во вкладке «Программа».";list.append(em);}
   EX.forEach((e,i)=>{
-    const prev=prevEntry(e.id,S.date);
+    const prev=prevEntry(e.id,S.date,e.sets);
     const sg=suggestSets(e,prev);
-    const cur=doc&&doc.ex&&doc.ex[e.id]?norm(doc.ex[e.id]):null;
+    const cur=doc&&doc.ex&&doc.ex[e.id]?norm(doc.ex[e.id],e.sets):null;
     const li=document.createElement("li");li.className="ex";li.dataset.id=e.id;
 
     const head=document.createElement("div");head.className="exhead";
@@ -373,15 +469,16 @@ function renderLog(){
     if(prev){
       last.append("Прошлый раз, "+short(prev.d)+": ");
       const b=document.createElement("b");b.textContent=setsText(prev);last.append(b);
-    }else last.textContent="Первый раз — начни с "+fmt(e.start)+" кг";
+    }else last.textContent=e.start>0?"Первый раз — начни с "+fmt(e.start)+" кг":"Первый раз — подбери рабочий вес";
     li.append(last);
 
     const grid=document.createElement("div");grid.className="sets";
+    grid.style.gridTemplateColumns="auto repeat("+e.sets+",minmax(0,1fr))";
     const cell=(cls,txt)=>{const s=document.createElement("span");s.className=cls;s.textContent=txt;grid.append(s);};
-    cell("lab","Подход");[1,2,3].forEach(k=>cell("colh",String(k)));
+    cell("lab","Подход");seq(e.sets).forEach(k=>cell("colh",String(k+1)));
 
     cell("lab","Повторы");
-    for(let k=0;k<3;k++){
+    for(let k=0;k<e.sets;k++){
       const r=document.createElement("input");r.className="num";r.id="r-"+e.id+"-"+k;r.inputMode="numeric";r.autocomplete="off";
       r.placeholder=String(e.hi);r.setAttribute("aria-label",e.name+": повторы, подход "+(k+1));
       const v=cur?cur.r[k]:null;r.value=v==null?"":String(v);
@@ -390,9 +487,9 @@ function renderLog(){
       grid.append(r);
     }
 
-    cell("lab","Вес, кг");
+    cell("lab",e.unit==="свой вес + кг"?"Доп. кг":"Вес, кг");
     const wins=[];
-    for(let k=0;k<3;k++){
+    for(let k=0;k<e.sets;k++){
       const w=document.createElement("input");w.className="num wt";w.id="w-"+e.id+"-"+k;w.inputMode="decimal";w.autocomplete="off";
       w.setAttribute("aria-label",e.name+": вес, подход "+(k+1));
       const saved=cur?cur.w[k]:null;
@@ -401,7 +498,7 @@ function renderLog(){
       else if(sg[k].up)w.classList.add("bump");
       w.addEventListener("input",()=>{
         w.dataset.edited="1";w.classList.remove("bump");
-        for(let j=k+1;j<3;j++){if(!wins[j].dataset.edited){wins[j].value=w.value;wins[j].classList.remove("bump");}}
+        for(let j=k+1;j<e.sets;j++){if(!wins[j].dataset.edited){wins[j].value=w.value;wins[j].classList.remove("bump");}}
       });
       wins.push(w);grid.append(w);
     }
@@ -413,10 +510,12 @@ function renderLog(){
 function collect(){
   const ex={};let any=false;
   EX.forEach(e=>{
-    const r=[0,1,2].map(k=>intv($("#r-"+e.id+"-"+k).value));
-    const w=[0,1,2].map(k=>numv($("#w-"+e.id+"-"+k).value));
+    const r=seq(e.sets).map(k=>intv($("#r-"+e.id+"-"+k).value));
+    const w=seq(e.sets).map(k=>numv($("#w-"+e.id+"-"+k).value));
     if(r.some(v=>v!=null)){ex[e.id]={w:w,r:r};any=true;}
   });
+  const old=S.docs.get(S.date);
+  if(old&&old.ex)Object.keys(old.ex).forEach(id=>{if(!EX.some(e=>e.id===id)&&hasSets(old.ex[id])){ex[id]=old.ex[id];any=true;}});
   const bw=numv($("#bwInput").value);
   if(!any&&bw==null)return null;
   const body={date:S.date,ex:ex};if(bw!=null)body.bw=bw;
@@ -455,7 +554,9 @@ $("#delYes").addEventListener("click",()=>{
 });
 
 /* ---------- PROGRESS view ---------- */
+function fixSel(){if(S.sel!=="bw"&&!EX.some(e=>e.id===S.sel))S.sel=EX.length?EX[0].id:"bw";}
 function renderPicker(){
+  fixSel();
   const p=$("#picker");p.textContent="";
   const opts=EX.map(e=>({id:e.id,name:e.name})).concat([{id:"bw",name:"Вес тела"}]);
   opts.forEach(o=>{
@@ -491,7 +592,7 @@ function renderProgress(){
   const body=$("#progBody");body.textContent="";
   const pts=series();
   const isBw=S.sel==="bw";
-  const name=isBw?"Вес тела":EX.find(e=>e.id===S.sel).name;
+  const exSel=EX.find(e=>e.id===S.sel);const name=isBw?"Вес тела":(exSel?exSel.name:"Упражнение");
   if(!pts.length){
     const em=document.createElement("div");em.className="empty";
     em.textContent=isBw?"Пока нет записей веса тела. Вписывай вес утром на вкладке «Тренировка» — здесь появится график.":"По упражнению «"+name+"» ещё нет записей. Заполни повторы на вкладке «Тренировка» — здесь появится график веса и таблица всех подходов.";
@@ -584,6 +685,8 @@ window.addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(()=>{if(S
 
 /* ---------- YEAR view ---------- */
 function renderYear(){
+  const pd=PROG.days.map(i=>DAY_S[i]);
+  $("#planLegend").textContent=(pd.length?pd.join(", ").replace(/^./,c=>c.toUpperCase())+" — дни по плану. ":"")+"Нажми на день, чтобы открыть или заполнить его.";
   const y=S.year,t=today(),now=new Date();
   $("#yearTitle").textContent=y;
   $("#nextYear").disabled=y>=now.getFullYear();
@@ -601,7 +704,7 @@ function renderYear(){
     if(cnt){const b=document.createElement("b");b.textContent=cnt;ct.append(b," трен.");}else ct.textContent="—";
     hd.append(nm,ct);box.append(hd);
     const grid=document.createElement("div");grid.className="days";
-    ["пн","вт","ср","чт","пт","сб","вс"].forEach((w,i)=>{const s=document.createElement("span");s.className="wd"+(i===0||i===2||i===4?" plan":"");s.textContent=w;grid.append(s);});
+    ["пн","вт","ср","чт","пт","сб","вс"].forEach((w,i)=>{const s=document.createElement("span");s.className="wd"+(PROG.days.indexOf(i)>=0?" plan":"");s.textContent=w;grid.append(s);});
     const firstDow=(new Date(y,m,1).getDay()+6)%7;
     for(let k=0;k<firstDow;k++)grid.append(document.createElement("span"));
     const dim=new Date(y,m+1,0).getDate();
@@ -621,14 +724,150 @@ function renderYear(){
 $("#prevYear").addEventListener("click",()=>{S.year--;renderYear();});
 $("#nextYear").addEventListener("click",()=>{S.year++;renderYear();});
 
+/* ---------- PROGRAM editor ---------- */
+const PKEY="program",LSP="tg-gym-prog-v1";
+let progTimer=null;
+function setProgStatus(k,t){const el=$("#progStatus");el.className="status"+(k?" "+k:"");el.textContent=t;}
+function saveProg(){
+  PROG.saved=true;S.progChanged=true;
+  setProgStatus("","Изменения…");
+  clearTimeout(progTimer);
+  progTimer=setTimeout(()=>{
+    progTimer=null;
+    const data=JSON.stringify({days:PROG.days,ex:PROG.ex});
+    try{localStorage.setItem(LSP,data);}catch(e){}
+    if(S.mode==="cloud"){
+      cs("setItem",PKEY,data).then(()=>setProgStatus("ok","Программа сохранена в Telegram"))
+        .catch(()=>setProgStatus("err","Не сохранилось — проверь интернет и поменяй что-нибудь ещё раз"));
+    }else setProgStatus("ok","Программа сохранена");
+  },700);
+}
+function renderDays(){
+  const row=$("#daysRow");row.textContent="";
+  DAY_S.forEach((d,i)=>{
+    const b=document.createElement("button");b.type="button";b.textContent=d;
+    b.setAttribute("aria-pressed",String(PROG.days.indexOf(i)>=0));
+    b.addEventListener("click",()=>{
+      const k=PROG.days.indexOf(i);
+      if(k>=0)PROG.days.splice(k,1);else{PROG.days.push(i);PROG.days.sort();}
+      haptic("tap");renderDays();saveProg();
+    });
+    row.append(b);
+  });
+}
+function pfield(label,ctrl){const f=document.createElement("label");f.className="pf";const sp=document.createElement("span");sp.textContent=label;f.append(sp,ctrl);return f;}
+function pnum(val,mode,onset){
+  const i=document.createElement("input");i.inputMode=mode;i.autocomplete="off";i.value=fmt(val);
+  i.addEventListener("change",()=>{onset(numv(i.value));renderProgEditor();saveProg();});
+  return i;
+}
+function renderProgEditor(){
+  renderDays();
+  const list=$("#peList");list.textContent="";
+  if(!EX.length){const em=document.createElement("div");em.className="empty";em.textContent="Пока нет ни одного упражнения. Нажми «Добавить упражнение».";list.append(em);}
+  EX.forEach((e,i)=>{
+    const card=document.createElement("div");card.className="pe";
+    const top=document.createElement("div");top.className="pe-top";
+    const n=document.createElement("span");n.className="exnum";n.textContent=String(i+1);
+    const name=document.createElement("input");name.className="pe-name";name.value=e.name;name.maxLength=60;name.setAttribute("aria-label","Название упражнения "+(i+1));
+    name.addEventListener("input",()=>{e.name=name.value.slice(0,60);saveProg();});
+    name.addEventListener("change",()=>{if(!name.value.trim()){e.name="Упражнение";name.value=e.name;saveProg();}});
+    const mv=(d,txt,lab)=>{const b=document.createElement("button");b.type="button";b.className="mini";b.textContent=txt;b.setAttribute("aria-label",lab);
+      const j=i+d;b.disabled=d!==0&&(j<0||j>=EX.length);
+      b.addEventListener("click",()=>{
+        if(d===0){EX.splice(i,1);toast("Упражнение убрано, записи по нему остались");}
+        else{const t=EX[i];EX[i]=EX[j];EX[j]=t;}
+        haptic("tap");renderProgEditor();saveProg();
+      });return b;};
+    top.append(n,name,mv(-1,"↑","Выше"),mv(1,"↓","Ниже"),mv(0,"✕","Убрать упражнение"));
+    const f=document.createElement("div");f.className="pe-fields";
+    f.append(pfield("Подходы",pnum(e.sets,"numeric",v=>{e.sets=Math.round(clampNum(v,1,6,3));})));
+    const pair=document.createElement("div");pair.className="pair";
+    const lo=pnum(e.lo,"numeric",v=>{e.lo=Math.round(clampNum(v,1,100,e.lo));if(e.hi<e.lo)e.hi=e.lo;});lo.setAttribute("aria-label","Повторы от");
+    const hi=pnum(e.hi,"numeric",v=>{e.hi=Math.max(e.lo,Math.round(clampNum(v,1,100,e.hi)));});hi.setAttribute("aria-label","Повторы до");
+    const dash=document.createElement("b");dash.textContent="–";
+    pair.append(lo,dash,hi);
+    const pl=document.createElement("div");pl.className="pf";const ps=document.createElement("span");ps.textContent="Повторы";pl.append(ps,pair);
+    f.append(pl);
+    const sel=document.createElement("select");
+    UNITS.forEach(u=>{const o=document.createElement("option");o.value=u;o.textContent=u;sel.append(o);});
+    sel.value=e.unit;sel.addEventListener("change",()=>{e.unit=sel.value;saveProg();});
+    f.append(pfield("Тип",sel));
+    f.append(pfield("Шаг, кг",pnum(e.step,"decimal",v=>{e.step=clampNum(v,0,100,e.step);})));
+    f.append(pfield("Старт, кг",pnum(e.start,"decimal",v=>{e.start=clampNum(v,0,1000,e.start);})));
+    card.append(top,f);list.append(card);
+  });
+  $("#peAdd").disabled=EX.length>=MAX_EX;
+}
+$("#peAdd").addEventListener("click",()=>{
+  if(EX.length>=MAX_EX)return;
+  EX.push({id:"x"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:"Новое упражнение",sets:3,lo:10,hi:12,step:2.5,start:0,unit:"кг"});
+  haptic("tap");renderProgEditor();saveProg();
+  const ins=document.querySelectorAll(".pe-name");const last=ins[ins.length-1];
+  if(last){last.focus();try{last.select();}catch(e){}}
+});
+let resetArm=null;
+$("#peReset").addEventListener("click",ev=>{
+  const b=ev.currentTarget;
+  if(!resetArm){b.textContent="Точно вернуть? Нажми ещё раз";resetArm=setTimeout(()=>{resetArm=null;b.textContent="Вернуть стандартную программу";},3500);return;}
+  clearTimeout(resetArm);resetArm=null;b.textContent="Вернуть стандартную программу";
+  setProg(defaultProg());renderProgEditor();saveProg();toast("Стандартная программа вернулась");
+});
+$("#toProg").addEventListener("click",()=>{setView("prog");window.scrollTo({top:0});});
+
+/* share a program as a code */
+const b64e=t=>btoa(unescape(encodeURIComponent(t))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const b64d=t=>{t=t.replace(/-/g,"+").replace(/_/g,"/");while(t.length%4)t+="=";return decodeURIComponent(escape(atob(t)));};
+function progCode(){
+  return "GYM1:"+b64e(JSON.stringify({d:PROG.days,e:PROG.ex.map(e=>[e.id,e.name,e.sets,e.lo,e.hi,e.step,e.start,UNITS.indexOf(e.unit)])}));
+}
+function parseCode(t){
+  const m=String(t||"").match(/GYM1:([A-Za-z0-9_-]+)/);if(!m)return null;
+  try{
+    const o=JSON.parse(b64d(m[1]));
+    const p=cleanProg({days:o.d,ex:(o.e||[]).map(a=>({id:a[0],name:a[1],sets:a[2],lo:a[3],hi:a[4],step:a[5],start:a[6],unit:UNITS[a[7]]||"кг"}))});
+    return p.ex.length?p:null;
+  }catch(e){return null;}
+}
+function showCode(){const ta=$("#shareOut");ta.value=progCode();ta.hidden=false;return ta;}
+$("#shareCopy").addEventListener("click",()=>{
+  const ta=showCode();
+  const sel=()=>{ta.focus();ta.select();toast("Выдели код и скопируй");};
+  try{navigator.clipboard.writeText(ta.value).then(()=>toast("Код скопирован"),sel);}catch(e){sel();}
+});
+$("#shareSend").addEventListener("click",()=>{
+  const code=showCode().value;
+  const text="Моя программа тренировок. Открой журнал → вкладка «Программа» → «Загрузить программу друга» и вставь этот код.";
+  const url="https://t.me/share/url?url="+encodeURIComponent(code)+"&text="+encodeURIComponent(text);
+  try{if(tg&&tg.openTelegramLink){tg.openTelegramLink(url);return;}}catch(e){}
+  toast("Открой журнал в Telegram или скопируй код");
+});
+let pendingProg=null;
+$("#importBtn").addEventListener("click",()=>{
+  const p=parseCode($("#importIn").value);
+  if(!p){toast("Код не распознан — скопируй его целиком");return;}
+  pendingProg=p;
+  $("#importMsg").textContent="Программа на "+p.ex.length+" "+plural(p.ex.length,"упражнение","упражнения","упражнений")+". Заменить твою? Записи тренировок останутся.";
+  $("#importConfirm").hidden=false;
+});
+$("#importNo").addEventListener("click",()=>{pendingProg=null;$("#importConfirm").hidden=true;});
+$("#importYes").addEventListener("click",()=>{
+  if(!pendingProg)return;
+  setProg(pendingProg);pendingProg=null;
+  $("#importConfirm").hidden=true;$("#importIn").value="";
+  renderProgEditor();saveProg();toast("Программа загружена");
+});
+
 /* ---------- views ---------- */
 function setView(v){
   if(v!=="log")flush();
   S.view=v;
   document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===v)));
-  ["log","progress","year"].forEach(n=>{$("#v-"+n).hidden=n!==v;});
+  ["log","progress","year","prog"].forEach(n=>{$("#v-"+n).hidden=n!==v;});
+  if(v==="log"&&S.progChanged&&!S.touched&&!S.timer){S.progChanged=false;renderLog();}
   if(v==="progress")renderProgress();
   if(v==="year")renderYear();
+  if(v==="prog")renderProgEditor();
 }
 document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>{haptic("tap");setView(b.dataset.view);window.scrollTo({top:0});}));
 function refreshOthers(){if(S.view==="progress")renderProgress();if(S.view==="year")renderYear();}
@@ -641,7 +880,7 @@ function onData(){
 /* ---------- boot ---------- */
 const h=(location.hash||"").slice(1);
 renderLog();
-setView(["log","progress","year"].indexOf(h)>=0?h:"log");
+setView(["log","progress","year","prog"].indexOf(h)>=0?h:"log");
 
 function applyTheme(){
   if(!tg)return;
@@ -660,7 +899,11 @@ function applyTheme(){
   const cloudOK=!!(tg&&tg.initData&&tg.isVersionAtLeast&&tg.isVersionAtLeast("6.9")&&tg.CloudStorage);
   if(cloudOK){
     try{
-      const keys=(await cs("getKeys")).filter(k=>k.indexOf("w_")===0);
+      const allKeys=await cs("getKeys");
+      const keys=allKeys.filter(k=>k.indexOf("w_")===0);
+      if(allKeys.indexOf(PKEY)>=0){
+        try{const pv=await cs("getItems",[PKEY]);if(pv&&pv[PKEY])setProg(cleanProg(JSON.parse(pv[PKEY])));}catch(e){}
+      }
       const docs=new Map();
       for(let i=0;i<keys.length;i+=20){
         const part=keys.slice(i,i+20);
@@ -677,6 +920,7 @@ function applyTheme(){
     }
   }
   S.mode="local";
+  try{const t=localStorage.getItem(LSP);if(t)setProg(cleanProg(JSON.parse(t)));}catch(e){}
   S.docs=new Map(Object.entries(lsRead()));
   S.loaded=true;
   if(!cloudOK)$("#storageNote").hidden=false;

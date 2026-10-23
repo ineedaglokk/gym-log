@@ -231,6 +231,16 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .sheet .bar h3{flex:1;min-width:0;font-size:16px}
 .sheet .body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:12px}
 .sheet .body>*{flex-shrink:0}
+.wktabs button{padding:8px 13px;font-weight:500}
+.wktabs button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.wktabs .addw{border-style:dashed;color:var(--accent)}
+.daysrow button.other{border-style:dashed;color:var(--fg)}
+.danger-link{color:var(--danger)}
+.tpls{display:flex;flex-direction:column;gap:8px}
+.tpl{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;cursor:pointer;color:var(--fg)}
+.tpl b{font-weight:600;font-size:15px}
+.tpl small{font-size:12px;color:var(--muted)}
+#wkChips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .closebtn{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:var(--sunk);font-size:18px;line-height:1;cursor:pointer;color:var(--fg)}
 
 /* exercise card */
@@ -283,6 +293,11 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <span>Это стандартная программа фулбоди. Свою можно собрать во вкладке «Программа».</span>
       <button type="button" class="linkbtn" id="toProg">Собрать</button>
     </div>
+    <div class="card" id="wkRow" hidden>
+      <span class="eyebrow">Тренировка</span>
+      <div class="chips" id="wkChips" role="group" aria-label="Какая тренировка"></div>
+      <p class="target" id="wkNote" style="margin:0" hidden></p>
+    </div>
     <div class="bw">
       <label for="bwInput">Вес тела утром</label>
       <span class="unitfield"><input class="num" id="bwInput" inputmode="decimal" autocomplete="off" placeholder="—"> кг</span>
@@ -307,12 +322,33 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <h2>Твоя программа</h2>
     </div>
     <div class="statusline"><span class="status" id="progStatus">Добавляй упражнения из библиотеки — всё сохраняется само.</span></div>
+    <div class="chips wktabs" id="wkTabs" role="group" aria-label="Тренировки программы"></div>
     <div class="card">
-      <span class="eyebrow">Дни тренировок</span>
-      <div class="daysrow" id="daysRow" role="group" aria-label="Дни тренировок"></div>
+      <label class="eyebrow" for="wkName">Название тренировки</label>
+      <input class="pe-name" id="wkName" maxlength="30" autocomplete="off">
+      <span class="eyebrow" style="margin-top:4px">Дни этой тренировки</span>
+      <div class="daysrow" id="daysRow" role="group" aria-label="Дни этой тренировки"></div>
+      <p class="target" id="daysHint" style="margin:0" hidden></p>
+      <button type="button" class="linkbtn danger-link" id="wkDel" hidden style="align-self:flex-start">Удалить эту тренировку</button>
+      <div class="confirm" id="wkDelConfirm" hidden style="justify-content:flex-start">
+        <span id="wkDelMsg"></span>
+        <button type="button" class="btn danger" id="wkDelYes">Удалить</button>
+        <button type="button" class="btn" id="wkDelNo">Отмена</button>
+      </div>
     </div>
     <div class="exlist" id="peList"></div>
     <button type="button" class="btn wide primary" id="peAdd">+ Добавить из библиотеки</button>
+
+    <div class="card">
+      <span class="eyebrow">Готовые схемы</span>
+      <p class="target" style="margin:0">Быстрый старт: загрузи схему и поправь упражнения под себя.</p>
+      <div class="tpls" id="tplList"></div>
+      <div class="confirm" id="tplConfirm" hidden style="justify-content:flex-start">
+        <span id="tplMsg"></span>
+        <button type="button" class="btn primary" id="tplYes">Заменить</button>
+        <button type="button" class="btn" id="tplNo">Отмена</button>
+      </div>
+    </div>
 
     <div class="card share">
       <span class="eyebrow">Поделиться программой</span>

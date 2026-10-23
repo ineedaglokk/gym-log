@@ -22,32 +22,88 @@ const DEFAULT_EX=[
   {id:"triceps",lib:"Triceps_Pushdown_-_Rope_Attachment",name:"Трицепс на блоке",sets:3,lo:10,hi:12,step:2.5,start:20,unit:"кг"}
 ];
 const DEFAULT_LIB={};DEFAULT_EX.forEach(e=>{DEFAULT_LIB[e.id]=e.lib;});
-const defaultProg=()=>({days:[0,2,4],ex:DEFAULT_EX.map(e=>Object.assign({},e)),saved:false});
-let PROG=defaultProg(), EX=PROG.ex;
-function setProg(p){PROG=p;EX=PROG.ex;}
+const MAX_W=7,MAX_TOTAL=40;
+const defaultProg=()=>({workouts:[{id:"full",name:"Фулбоди",days:[0,2,4],ex:DEFAULT_EX.map(e=>Object.assign({},e))}],saved:false});
+let PROG=defaultProg();
+const allEx=()=>{const m={},out=[];PROG.workouts.forEach(w=>w.ex.forEach(e=>{if(!m[e.id]){m[e.id]=1;out.push(e);}}));return out;};
+const totalEx=()=>PROG.workouts.reduce((n,w)=>n+w.ex.length,0);
 
 const clampNum=(v,lo,hi,def)=>{v=Number(v);return isFinite(v)?Math.min(hi,Math.max(lo,v)):def;};
 const safeId=t=>String(t||"").replace(/[^A-Za-z0-9_]/g,"").slice(0,32);
+const rid=p=>p+Date.now().toString(36).slice(-4)+Math.random().toString(36).slice(2,5);
+function cleanEx(e){
+  const id=safeId(e.id)||rid("x");
+  const lib=LIBMAP[e.lib]?e.lib:(DEFAULT_LIB[id]||null);
+  const lo=Math.round(clampNum(e.lo,1,600,10)),hi=Math.max(lo,Math.round(clampNum(e.hi,1,600,12)));
+  return {id:id,lib:lib,name:String(e.name||"").trim().slice(0,60)||"Упражнение",
+    sets:Math.round(clampNum(e.sets,1,6,3)),lo:lo,hi:hi,step:clampNum(e.step,0,100,2.5),
+    start:clampNum(e.start,0,1000,0),unit:UNITS.indexOf(e.unit)>=0?e.unit:"кг"};
+}
+/* compact form, used both for storage and for share codes */
+function packProg(){
+  return {v:2,w:PROG.workouts.map(w=>[w.id,w.name,w.days,w.ex.map(e=>[e.id,e.name,e.sets,e.lo,e.hi,e.step,e.start,UNITS.indexOf(e.unit),e.lib||0])])};
+}
+function unpackProg(o){
+  if(!o)return null;
+  const ex=b=>({id:b[0],name:b[1],sets:b[2],lo:b[3],hi:b[4],step:b[5],start:b[6],unit:UNITS[b[7]]||"кг",lib:b[8]||null});
+  if(o.v===2&&Array.isArray(o.w))return {workouts:o.w.map(a=>({id:a[0],name:a[1],days:a[2],ex:(a[3]||[]).map(ex)}))};
+  if(Array.isArray(o.e))return {workouts:[{id:"full",name:"Тренировка",days:o.d,ex:o.e.map(ex)}]};   /* first share-code format */
+  return o;
+}
 function cleanProg(p){
-  const out={days:[],ex:[],saved:true};
-  if(p&&Array.isArray(p.days))out.days=p.days.filter(d=>Number.isInteger(d)&&d>=0&&d<7).filter((d,i,a)=>a.indexOf(d)===i).sort();
-  const seen={};
-  (p&&Array.isArray(p.ex)?p.ex:[]).slice(0,MAX_EX).forEach(e=>{
-    if(!e)return;
-    let id=safeId(e.id)||("x"+Math.random().toString(36).slice(2,8));
-    while(seen[id])id+="2";seen[id]=1;
-    const lib=LIBMAP[e.lib]?e.lib:(DEFAULT_LIB[id]||null);
-    const lo=Math.round(clampNum(e.lo,1,600,10)),hi=Math.max(lo,Math.round(clampNum(e.hi,1,600,12)));
-    out.ex.push({id:id,lib:lib,name:String(e.name||"").trim().slice(0,60)||"Упражнение",
-      sets:Math.round(clampNum(e.sets,1,6,3)),lo:lo,hi:hi,step:clampNum(e.step,0,100,2.5),
-      start:clampNum(e.start,0,1000,0),unit:UNITS.indexOf(e.unit)>=0?e.unit:"кг"});
+  p=unpackProg(p);
+  let ws=[];
+  if(p&&Array.isArray(p.workouts))ws=p.workouts;
+  else if(p&&Array.isArray(p.ex))ws=[{id:"full",name:"Фулбоди",days:p.days,ex:p.ex}];   /* single-workout programs saved earlier */
+  const out={workouts:[],saved:true},wseen={},taken={};let total=0;
+  ws.slice(0,MAX_W).forEach((w,wi)=>{
+    if(!w)return;
+    let wid=safeId(w.id)||("w"+wi);while(wseen[wid])wid+="2";wseen[wid]=1;
+    const days=(Array.isArray(w.days)?w.days:[]).filter(d=>Number.isInteger(d)&&d>=0&&d<7&&!taken[d]&&(taken[d]=1)).sort();
+    const exs=[],seen={};
+    (Array.isArray(w.ex)?w.ex:[]).forEach(e=>{
+      if(!e||exs.length>=MAX_EX||total>=MAX_TOTAL)return;
+      const c=cleanEx(e);if(seen[c.id])return;seen[c.id]=1;exs.push(c);total++;
+    });
+    out.workouts.push({id:wid,name:String(w.name||"").trim().slice(0,30)||("Тренировка "+(wi+1)),days:days,ex:exs});
   });
+  if(!out.workouts.length)out.workouts.push({id:"w1",name:"Тренировка А",days:[],ex:[]});
   return out;
 }
-function fromLib(x){
-  let id=safeId(x.id);while(EX.some(e=>e.id===id))id+="2";
+/* same exercise in two workouts shares one id, so its history is shared too */
+function fromLib(x,W){
+  const other=allEx().find(e=>e.lib===x.id);
+  let id=other?other.id:safeId(x.id);
+  if(!other)while(allEx().some(e=>e.id===id))id+="2";
   return {id:id,lib:x.id,name:x.name,sets:x.sets||3,lo:x.lo||10,hi:Math.max(x.lo||10,x.hi||12),
-    step:x.step!=null?x.step:2.5,start:0,unit:UNITS.indexOf(x.unit)>=0?x.unit:"кг"};
+    step:x.step!=null?x.step:2.5,start:other?other.start:0,unit:UNITS.indexOf(x.unit)>=0?x.unit:"кг"};
+}
+function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.openEx={};}
+
+/* ready-made splits for friends */
+const T=(lib,o)=>Object.assign({lib:lib},o||{});
+const TEMPLATES=[
+  {key:"full",name:"Фулбоди, 3 дня",note:"Одна тренировка на всё тело: пн, ср, пт",
+   make:()=>defaultProg().workouts},
+  {key:"ul",name:"Верх / низ, 4 дня",note:"Верх: пн, чт · Низ: вт, пт",
+   w:[["Верх",[0,3],["Barbell_Bench_Press_-_Medium_Grip","Wide-Grip_Lat_Pulldown","Dumbbell_Shoulder_Press","Seated_Cable_Rows","Side_Lateral_Raise","Dumbbell_Bicep_Curl","Triceps_Pushdown_-_Rope_Attachment"]],
+      ["Низ",[1,4],["Barbell_Squat","Romanian_Deadlift","Leg_Press","Lying_Leg_Curls","Barbell_Hip_Thrust","Standing_Calf_Raises","Plank"]]]},
+  {key:"ppl",name:"Толкай / тяни / ноги, 3 дня",note:"Толкай: пн · Тяни: ср · Ноги: пт",
+   w:[["Толкай",[0],["Barbell_Bench_Press_-_Medium_Grip","Incline_Dumbbell_Press","Dumbbell_Shoulder_Press","Side_Lateral_Raise","Triceps_Pushdown_-_Rope_Attachment","EZ-Bar_Skullcrusher"]],
+      ["Тяни",[2],["Pullups","Bent_Over_Barbell_Row","Close-Grip_Front_Lat_Pulldown","Face_Pull","Barbell_Curl","Hammer_Curls"]],
+      ["Ноги",[4],["Barbell_Squat","Romanian_Deadlift","Leg_Press","Seated_Leg_Curl","Seated_Calf_Raise","Hanging_Leg_Raise"]]]}
+];
+function templateProg(t){
+  if(t.make)return {workouts:t.make(),saved:true};
+  const p={workouts:[],saved:true};
+  t.w.forEach((a,i)=>{
+    const W={id:"w"+(i+1),name:a[0],days:a[1].slice(),ex:[]};
+    p.workouts.push(W);
+    const prev=PROG;PROG=p;
+    a[2].forEach(lid=>{const x=LIBMAP[lid];if(x&&!W.ex.some(e=>e.lib===lid))W.ex.push(fromLib(x,W));});
+    PROG=prev;
+  });
+  return p;
 }
 
 /* ================= helpers ================= */
@@ -81,7 +137,7 @@ const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"cal",
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
-  libGroup:"Все",libQuery:"",openEx:{}};
+  libGroup:"Все",libQuery:"",openEx:{},pwi:0,logW:null,curW:null};
 
 /* ================= storage ================= */
 const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
@@ -162,8 +218,38 @@ function setsText(x,e){
 const targetText=e=>e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?" с":"")+" · "+e.unit;
 
 /* ================= LOG ================= */
+const wdOf=date=>(parse(date).getDay()+6)%7;
+const plannedFor=date=>PROG.workouts.filter(w=>w.days.indexOf(wdOf(date))>=0);
+function logWorkout(){
+  const byId=id=>PROG.workouts.find(w=>w.id===id);
+  const doc=S.docs.get(S.date);
+  if(S.logW&&byId(S.logW))return byId(S.logW);
+  if(doc&&doc.wk&&byId(doc.wk))return byId(doc.wk);
+  if(doc&&doc.ex&&!doc.wk){
+    /* records from before splits: the workout that holds most of the logged exercises */
+    let best=null,score=0;
+    PROG.workouts.forEach(w=>{const n=w.ex.filter(e=>doc.ex[e.id]).length;if(n>score){score=n;best=w;}});
+    if(best)return best;
+  }
+  return plannedFor(S.date)[0]||PROG.workouts[0];
+}
+function renderWkRow(W){
+  const row=$("#wkRow"),chips=$("#wkChips");chips.textContent="";
+  const many=PROG.workouts.length>1,planned=plannedFor(S.date),doc=S.docs.get(S.date);
+  row.hidden=!many&&(planned.length||doc);
+  PROG.workouts.forEach(w=>{
+    const b=el("button",null,w.name+(planned.indexOf(w)>=0?" •":""));b.type="button";
+    b.setAttribute("aria-pressed",String(w===W));
+    if(planned.indexOf(w)>=0)b.title="По плану на этот день";
+    b.addEventListener("click",()=>{if(w===W)return;flush();S.logW=w.id;haptic("tap");renderLog();});
+    chips.append(b);
+  });
+  $("#wkNote").textContent=planned.length?"":"По плану в этот день отдых. Если тренируешься — выбери тренировку.";
+  $("#wkNote").hidden=!!planned.length||!!doc;
+}
 function renderLog(){
   S.touched=false;
+  const W=logWorkout(),EX=W.ex;S.curW=W;
   const d=parse(S.date),t=today();
   $("#dateTitle").textContent=d.getDate()+" "+MON_G[d.getMonth()];
   const rel=S.date===t?"Сегодня":(S.date===addDays(t,-1)?"Вчера":"");
@@ -177,8 +263,9 @@ function renderLog(){
   $("#bwInput").value=doc&&doc.bw!=null?fmt(doc.bw):"";
   $("#delBtn").hidden=!doc;$("#delConfirm").hidden=true;
 
+  renderWkRow(W);
   const list=$("#exList");list.textContent="";
-  if(!EX.length){list.append(el("li","empty","В программе пока нет упражнений. Собери её во вкладке «Программа»."));return;}
+  if(!EX.length){list.append(el("li","empty","В тренировке «"+W.name+"» пока нет упражнений. Собери её во вкладке «Программа»."));return;}
   EX.forEach((e,i)=>{
     const prev=prevEntry(e.id,S.date,e.sets);
     const sg=suggestSets(e,prev);
@@ -231,6 +318,7 @@ function renderLog(){
   });
 }
 function collect(){
+  const W=S.curW||logWorkout(),EX=W.ex;
   const ex={};let any=false;
   EX.forEach(e=>{
     const r=seq(e.sets).map(k=>{const n=$("#r-"+e.id+"-"+k);return n?intv(n.value):null;});
@@ -241,7 +329,7 @@ function collect(){
   if(old&&old.ex)Object.keys(old.ex).forEach(id=>{if(!EX.some(e=>e.id===id)&&hasSets(old.ex[id])){ex[id]=old.ex[id];any=true;}});
   const bw=numv($("#bwInput").value);
   if(!any&&bw==null)return null;
-  const body={date:S.date,ex:ex};if(bw!=null)body.bw=bw;
+  const body={date:S.date,wk:W.id,ex:ex};if(bw!=null)body.bw=bw;
   return body;
 }
 function flush(){
@@ -256,7 +344,7 @@ $("#exList").addEventListener("input",onEdit);
 $("#bwInput").addEventListener("input",onEdit);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){flush();flushProg();}});
 
-function goDate(d){flush();S.date=d>today()?today():d;renderLog();window.scrollTo({top:0});}
+function goDate(d){flush();S.date=d>today()?today():d;S.logW=null;renderLog();window.scrollTo({top:0});}
 $("#prevDay").addEventListener("click",()=>goDate(addDays(S.date,-1)));
 $("#nextDay").addEventListener("click",()=>goDate(addDays(S.date,1)));
 $("#toToday").addEventListener("click",()=>goDate(today()));
@@ -268,14 +356,18 @@ $("#toProg").addEventListener("click",()=>{setView("prog");window.scrollTo({top:
 
 /* ================= PROGRAM (constructor) ================= */
 let progTimer=null;
+const PW=()=>{if(!(S.pwi>=0&&S.pwi<PROG.workouts.length))S.pwi=0;return PROG.workouts[S.pwi];};
+const workoutsWord=n=>n+" "+plural(n,"тренировка","тренировки","тренировок");
+const exWord=n=>n+" "+plural(n,"упражнение","упражнения","упражнений");
 function setProgStatus(k,t){const s=$("#progStatus");s.className="status"+(k?" "+k:"");s.textContent=t;}
 function flushProg(){
   if(!progTimer)return;
   clearTimeout(progTimer);progTimer=null;
-  const data={days:PROG.days,ex:PROG.ex};
-  lsWrite(LSP,data);
+  const txt=JSON.stringify(packProg());
+  try{localStorage.setItem(LSP,txt);}catch(e){}
+  if(txt.length>4000){setProgStatus("err","Программа слишком большая для облака Telegram — убери пару упражнений");return;}
   if(S.mode==="cloud"){
-    cs("setItem",PKEY,JSON.stringify(data)).then(()=>setProgStatus("ok","Программа сохранена в Telegram"))
+    cs("setItem",PKEY,txt).then(()=>setProgStatus("ok","Программа сохранена в Telegram"))
       .catch(()=>setProgStatus("err","Не сохранилось — проверь интернет и поменяй что-нибудь ещё раз"));
   }else setProgStatus("ok","Программа сохранена");
 }
@@ -284,16 +376,45 @@ function saveProg(){
   setProgStatus("","Изменения…");
   clearTimeout(progTimer);progTimer=setTimeout(flushProg,700);
 }
+function renderWkTabs(){
+  const c=$("#wkTabs");c.textContent="";
+  PROG.workouts.forEach((w,i)=>{
+    const b=el("button",null,w.name);b.type="button";b.setAttribute("aria-pressed",String(i===S.pwi));
+    b.addEventListener("click",()=>{if(i===S.pwi)return;S.pwi=i;haptic("tap");renderProgEditor();});
+    c.append(b);
+  });
+  if(PROG.workouts.length<MAX_W){
+    const add=el("button","addw","+ Тренировка");add.type="button";
+    add.addEventListener("click",()=>{
+      const n=PROG.workouts.length,letters="АБВГДЕЖ";
+      let name="Тренировка "+letters[n];
+      PROG.workouts.push({id:rid("w"),name:name,days:[],ex:[]});
+      S.pwi=n;haptic("tap");renderProgEditor();saveProg();
+      const ni=$("#wkName");ni.focus();try{ni.select();}catch(e){}
+    });
+    c.append(add);
+  }
+}
 function renderDays(){
-  const row=$("#daysRow");row.textContent="";
+  const W=PW(),row=$("#daysRow");row.textContent="";
   DAY_S.forEach((d,i)=>{
-    const b=el("button",null,d);b.type="button";b.setAttribute("aria-pressed",String(PROG.days.indexOf(i)>=0));
+    const own=W.days.indexOf(i)>=0;
+    const other=PROG.workouts.find(o=>o!==W&&o.days.indexOf(i)>=0);
+    const b=el("button",other&&!own?"other":null,d);b.type="button";b.setAttribute("aria-pressed",String(own));
+    b.setAttribute("aria-label",d+(own?", эта тренировка":other?", сейчас «"+other.name+"»":", отдых"));
     b.addEventListener("click",()=>{
-      const k=PROG.days.indexOf(i);if(k>=0)PROG.days.splice(k,1);else{PROG.days.push(i);PROG.days.sort();}
+      if(own)W.days.splice(W.days.indexOf(i),1);
+      else{
+        PROG.workouts.forEach(o=>{const k=o.days.indexOf(i);if(k>=0)o.days.splice(k,1);});
+        W.days.push(i);W.days.sort();
+        if(other)toast(d.toUpperCase()+" теперь «"+W.name+"», а не «"+other.name+"»");
+      }
       haptic("tap");renderDays();saveProg();
     });
     row.append(b);
   });
+  const hint=PROG.workouts.length>1?"Пунктиром — дни других тренировок. Нажми, чтобы забрать день сюда.":"";
+  $("#daysHint").textContent=hint;$("#daysHint").hidden=!hint;
 }
 function pfield(label,ctrl){const f=el("label","pf");f.append(el("span",null,label),ctrl);return f;}
 function pnum(val,mode,onset,label){
@@ -306,9 +427,13 @@ function thumb(e){
   return el("span","pc-thumb blank",(e.name||"?").slice(0,1).toUpperCase());
 }
 function renderProgEditor(){
+  const W=PW(),EX=W.ex;
+  renderWkTabs();
+  if(document.activeElement!==$("#wkName"))$("#wkName").value=W.name;
+  $("#wkDel").hidden=PROG.workouts.length<2;$("#wkDelConfirm").hidden=true;
   renderDays();
   const list=$("#peList");list.textContent="";
-  if(!EX.length)list.append(el("div","empty","Программа пустая. Нажми «Добавить из библиотеки» и выбери упражнения."));
+  if(!EX.length)list.append(el("div","empty","В «"+W.name+"» пока нет упражнений. Нажми кнопку ниже и выбери их в библиотеке."));
   EX.forEach((e,i)=>{
     const card=el("div","pc");
     const row=el("div","pc-row");
@@ -316,15 +441,14 @@ function renderProgEditor(){
     main.append(el("h3",null,(i+1)+". "+e.name),el("p","target",targetText(e)+(e.step>0&&!isTime(e)?" · шаг "+fmt(e.step)+" кг":"")));
     row.append(thumb(e),main);
     if(e.lib&&LIBMAP[e.lib]){const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openInfo(e.lib));row.append(ib);}
-    const open=!!S.openEx[e.id];
+    const key=W.id+"/"+e.id,open=!!S.openEx[key];
     const tog=el("button","mini",open?"▴":"⋯");tog.type="button";tog.setAttribute("aria-label",open?"Свернуть настройки":"Настроить упражнение");tog.setAttribute("aria-expanded",String(open));
-    tog.addEventListener("click",()=>{S.openEx[e.id]=!open;renderProgEditor();});
+    tog.addEventListener("click",()=>{S.openEx[key]=!open;renderProgEditor();});
     row.append(tog);card.append(row);
-
     if(open){
       const name=el("input","pe-name");name.value=e.name;name.maxLength=60;name.setAttribute("aria-label","Название");
       name.addEventListener("input",()=>{e.name=name.value.slice(0,60);saveProg();});
-      name.addEventListener("change",()=>{if(!name.value.trim()){e.name="Упражнение";}renderProgEditor();});
+      name.addEventListener("change",()=>{if(!name.value.trim())e.name="Упражнение";renderProgEditor();});
       card.append(name);
       const f=el("div","pe-fields");
       f.append(pfield("Подходы",pnum(e.sets,"numeric",v=>{e.sets=Math.round(clampNum(v,1,6,3));})));
@@ -345,15 +469,48 @@ function renderProgEditor(){
       const mv=(d,txt,lab)=>{const b=el("button","mini",txt);b.type="button";b.setAttribute("aria-label",lab);const j=i+d;b.disabled=j<0||j>=EX.length;
         b.addEventListener("click",()=>{const t=EX[i];EX[i]=EX[j];EX[j]=t;haptic("tap");renderProgEditor();saveProg();});return b;};
       const del=el("button","btn","Убрать");del.type="button";
-      del.addEventListener("click",()=>{EX.splice(i,1);delete S.openEx[e.id];haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
+      del.addEventListener("click",()=>{EX.splice(i,1);delete S.openEx[key];haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
       tools.append(mv(-1,"↑","Выше"),mv(1,"↓","Ниже"),el("span","grow"),del);
       card.append(tools);
     }
     list.append(card);
   });
-  $("#peAdd").disabled=EX.length>=MAX_EX;
+  const full=EX.length>=MAX_EX||totalEx()>=MAX_TOTAL;
+  $("#peAdd").textContent=full?"Достигнут лимит упражнений":"+ Добавить в «"+W.name+"»";
+  $("#peAdd").disabled=full;
+  renderTemplates();
 }
 $("#peAdd").addEventListener("click",()=>openLib());
+$("#wkName").addEventListener("input",ev=>{PW().name=ev.target.value.slice(0,30);renderWkTabs();$("#peAdd").textContent="+ Добавить в «"+PW().name+"»";saveProg();});
+$("#wkName").addEventListener("change",ev=>{if(!ev.target.value.trim()){PW().name="Тренировка";ev.target.value=PW().name;renderWkTabs();saveProg();}});
+$("#wkDel").addEventListener("click",()=>{$("#wkDelMsg").textContent="Удалить «"+PW().name+"»? Записи тренировок останутся.";$("#wkDel").hidden=true;$("#wkDelConfirm").hidden=false;});
+$("#wkDelNo").addEventListener("click",()=>{$("#wkDelConfirm").hidden=true;$("#wkDel").hidden=false;});
+$("#wkDelYes").addEventListener("click",()=>{
+  if(PROG.workouts.length<2)return;
+  const name=PW().name;PROG.workouts.splice(S.pwi,1);S.pwi=0;S.logW=null;
+  renderProgEditor();saveProg();toast("«"+name+"» удалена");
+});
+
+/* ready-made splits */
+let pendingTpl=null;
+function renderTemplates(){
+  const box=$("#tplList");if(box.childElementCount)return;
+  TEMPLATES.forEach(t=>{
+    const b=el("button","tpl");b.type="button";
+    b.append(el("b",null,t.name),el("small",null,t.note));
+    b.addEventListener("click",()=>{pendingTpl=t;$("#tplMsg").textContent="Заменить программу на «"+t.name+"»? Записи тренировок останутся.";$("#tplConfirm").hidden=false;});
+    box.append(b);
+  });
+}
+$("#tplNo").addEventListener("click",()=>{pendingTpl=null;$("#tplConfirm").hidden=true;});
+$("#tplYes").addEventListener("click",()=>{
+  if(!pendingTpl)return;
+  setProg(templateProg(pendingTpl));
+  const n=pendingTpl.name;pendingTpl=null;$("#tplConfirm").hidden=true;
+  renderProgEditor();saveProg();toast("Схема «"+n+"» загружена — поправь под себя");
+  window.scrollTo({top:0});
+});
+
 let resetArm=null;
 $("#peReset").addEventListener("click",ev=>{
   const b=ev.currentTarget;
@@ -365,16 +522,10 @@ $("#peReset").addEventListener("click",ev=>{
 /* share a program as a code */
 const b64e=t=>btoa(unescape(encodeURIComponent(t))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const b64d=t=>{t=t.replace(/-/g,"+").replace(/_/g,"/");while(t.length%4)t+="=";return decodeURIComponent(escape(atob(t)));};
-function progCode(){
-  return "GYM1:"+b64e(JSON.stringify({d:PROG.days,e:PROG.ex.map(e=>[e.id,e.name,e.sets,e.lo,e.hi,e.step,e.start,UNITS.indexOf(e.unit),e.lib||0])}));
-}
+const progCode=()=>"GYM2:"+b64e(JSON.stringify(packProg()));
 function parseCode(t){
-  const m=String(t||"").match(/GYM1:([A-Za-z0-9_-]+)/);if(!m)return null;
-  try{
-    const o=JSON.parse(b64d(m[1]));
-    const p=cleanProg({days:o.d,ex:(o.e||[]).map(a=>({id:a[0],name:a[1],sets:a[2],lo:a[3],hi:a[4],step:a[5],start:a[6],unit:UNITS[a[7]]||"кг",lib:a[8]||null}))});
-    return p.ex.length?p:null;
-  }catch(e){return null;}
+  const m=String(t||"").match(/GYM[12]:([A-Za-z0-9_-]+)/);if(!m)return null;
+  try{const p=cleanProg(JSON.parse(b64d(m[1])));return p.workouts.some(w=>w.ex.length)?p:null;}catch(e){return null;}
 }
 function showCode(){const ta=$("#shareOut");ta.value=progCode();ta.hidden=false;return ta;}
 $("#shareCopy").addEventListener("click",()=>{
@@ -394,7 +545,8 @@ $("#importBtn").addEventListener("click",()=>{
   const p=parseCode($("#importIn").value);
   if(!p){toast("Код не распознан — скопируй его целиком");return;}
   pendingProg=p;
-  $("#importMsg").textContent="Программа на "+p.ex.length+" "+plural(p.ex.length,"упражнение","упражнения","упражнений")+". Заменить твою? Записи тренировок останутся.";
+  const nEx=p.workouts.reduce((n,w)=>n+w.ex.length,0);
+  $("#importMsg").textContent="В программе "+workoutsWord(p.workouts.length)+" и "+exWord(nEx)+". Заменить твою? Записи тренировок останутся.";
   $("#importConfirm").hidden=false;
 });
 $("#importNo").addEventListener("click",()=>{pendingProg=null;$("#importConfirm").hidden=true;});
@@ -423,12 +575,13 @@ document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&stack.length)closeSheet();});
 try{if(tg&&tg.BackButton)tg.BackButton.onClick(closeSheet);}catch(e){}
 
-const inProg=libId=>EX.some(e=>e.lib===libId);
+const inProg=libId=>PW().ex.some(e=>e.lib===libId);
 function addFromLib(x){
-  if(EX.length>=MAX_EX){toast("В программе максимум "+MAX_EX+" упражнений");return false;}
+  const W=PW();
+  if(W.ex.length>=MAX_EX||totalEx()>=MAX_TOTAL){toast("Достигнут лимит упражнений в программе");return false;}
   if(inProg(x.id))return false;
-  EX.push(fromLib(x));haptic("hit");saveProg();renderProgEditor();
-  toast("«"+x.name+"» в программе");return true;
+  W.ex.push(fromLib(x,W));haptic("hit");saveProg();renderProgEditor();
+  toast("«"+x.name+"» добавлено в «"+W.name+"»");return true;
 }
 function renderLibChips(){
   const c=$("#libChips");c.textContent="";
@@ -460,6 +613,7 @@ function renderLibList(){
 }
 function openLib(){
   S.libQuery="";$("#libSearch").value="";
+  $("#libTitle").textContent="Библиотека → «"+PW().name+"»";
   renderLibChips();renderLibList();openSheet("libSheet");
   $("#libSheet .body").scrollTop=0;
 }
@@ -467,10 +621,11 @@ $("#libSearch").addEventListener("input",ev=>{S.libQuery=ev.target.value;renderL
 $("#customAdd").addEventListener("click",()=>{
   const n=$("#customName").value.trim();
   if(!n){$("#customName").focus();return;}
-  if(EX.length>=MAX_EX){toast("В программе максимум "+MAX_EX+" упражнений");return;}
-  const id="x"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-  EX.push({id:id,lib:null,name:n.slice(0,60),sets:3,lo:10,hi:12,step:2.5,start:0,unit:"кг"});
-  S.openEx[id]=true;$("#customName").value="";
+  const W=PW();
+  if(W.ex.length>=MAX_EX||totalEx()>=MAX_TOTAL){toast("Достигнут лимит упражнений в программе");return;}
+  const id=rid("x");
+  W.ex.push({id:id,lib:null,name:n.slice(0,60),sets:3,lo:10,hi:12,step:2.5,start:0,unit:"кг"});
+  S.openEx[W.id+"/"+id]=true;$("#customName").value="";
   saveProg();renderProgEditor();closeSheet();toast("Добавлено — настрой подходы и вес");
 });
 
@@ -493,8 +648,8 @@ function openInfo(libId){
   if(x.mistakes&&x.mistakes.length){b.append(el("h4",null,"Частые ошибки"));const ul=el("ul");x.mistakes.forEach(t=>ul.append(el("li",null,t)));b.append(ul);}
   if(x.tip)b.append(el("div","tipbox",x.tip));
   if(!inProg(x.id)){
-    const add=el("button","btn wide primary","+ Добавить в программу");add.type="button";
-    add.addEventListener("click",()=>{if(addFromLib(x)){add.disabled=true;add.textContent="✓ В программе";if(stack.indexOf("libSheet")>=0)renderLibList();}});
+    const add=el("button","btn wide primary","+ Добавить в «"+PW().name+"»");add.type="button";
+    add.addEventListener("click",()=>{if(addFromLib(x)){add.disabled=true;add.textContent="✓ Добавлено";if(stack.indexOf("libSheet")>=0)renderLibList();}});
     b.append(add);
   }
   const yt=el("a","btn wide yt","Видео техники на YouTube");
@@ -526,8 +681,9 @@ function renderYear(){
   const done=new Set([...S.docs.entries()].filter(([,doc])=>isWorkout(doc)).map(([d])=>d));
   $("#yearCount").textContent=workouts([...done].filter(d=>d.startsWith(y+"-")).length)+" за год";
   if(S.yearPane==="prog"){renderProgress();return;}
-  const pd=PROG.days.map(i=>DAY_S[i]);
-  $("#planLegend").textContent=(pd.length?pd.join(", ").replace(/^./,c=>c.toUpperCase())+" — дни по плану. ":"")+"Нажми на день, чтобы открыть или заполнить его.";
+  const parts=PROG.workouts.filter(w=>w.days.length).map(w=>w.days.map(i=>DAY_S[i]).join(", ")+" — "+w.name);
+  $("#planLegend").textContent=(parts.length?parts.join("; ").replace(/^./,c=>c.toUpperCase())+". ":"")+"Нажми на день, чтобы открыть или заполнить его.";
+  const planDays=new Set();PROG.workouts.forEach(w=>w.days.forEach(d=>planDays.add(d)));
   const host=$("#months");host.textContent="";
   for(let m=0;m<12;m++){
     const box=el("div","month"+(y===now.getFullYear()&&m===now.getMonth()?" cur":""));
@@ -537,7 +693,7 @@ function renderYear(){
     if(cnt){ct.append(el("b",null,String(cnt))," трен.");}else ct.textContent="—";
     hd.append(el("span","mname",MON[m]),ct);box.append(hd);
     const grid=el("div","days");
-    DAY_S.forEach((w,i)=>grid.append(el("span","wd"+(PROG.days.indexOf(i)>=0?" plan":""),w)));
+    DAY_S.forEach((w,i)=>grid.append(el("span","wd"+(planDays.has(i)?" plan":""),w)));
     const firstDow=(new Date(y,m,1).getDay()+6)%7;
     for(let k=0;k<firstDow;k++)grid.append(el("span"));
     const dim=new Date(y,m+1,0).getDate();
@@ -548,7 +704,7 @@ function renderYear(){
       if(ds===t)b.classList.add("today");
       if(ds>t){b.classList.add("future");b.disabled=true;}
       b.setAttribute("aria-label",d+" "+MON_G[m]+(done.has(ds)?", была тренировка":""));
-      b.addEventListener("click",()=>{S.date=ds;setView("log");renderLog();window.scrollTo({top:0});});
+      b.addEventListener("click",()=>{flush();S.date=ds;S.logW=null;setView("log");renderLog();window.scrollTo({top:0});});
       grid.append(b);
     }
     box.append(grid);host.append(box);
@@ -567,9 +723,10 @@ function metricsFor(e){
 }
 function progressItems(){
   /* exercises in the program first, then anything else that has history */
-  const items=EX.map(e=>({id:e.id,e:e}));
+  const AE=allEx();
+  const items=AE.map(e=>({id:e.id,e:e}));
   const extra={};
-  for(const [,doc] of S.docs){if(doc.ex)Object.keys(doc.ex).forEach(id=>{if(!EX.some(e=>e.id===id))extra[id]=1;});}
+  for(const [,doc] of S.docs){if(doc.ex)Object.keys(doc.ex).forEach(id=>{if(!AE.some(e=>e.id===id))extra[id]=1;});}
   Object.keys(extra).forEach(id=>{const d=DEFAULT_EX.find(e=>e.id===id);items.push({id:id,e:d||{id:id,name:"Старое упражнение",unit:"кг",sets:3,lo:10,hi:12}});});
   items.push({id:"bw",e:null});
   return items;

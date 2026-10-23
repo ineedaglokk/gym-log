@@ -621,9 +621,10 @@ $("#customAdd").addEventListener("click",()=>{
 /* looping technique animation, shown straight from the ExerciseDB server (nothing is copied here) */
 function animBox(x){
   const box=el("div","anim");
-  const im=el("img");im.alt=x.name+": анимация техники";im.decoding="async";
+  const im=el("img");im.alt=x.name+": анимация техники";im.decoding="async";im.referrerPolicy="no-referrer";
   im.src="https://static.exercisedb.dev/media/"+x.edb+".gif";
-  im.addEventListener("error",()=>{const alt=x.yt?videoBox(x):null;if(alt)box.replaceWith(alt);else{im.src=imgSrc(x.id,0);box.classList.add("photo");}},{once:true});
+  im.addEventListener("error",()=>{const alt=x.yt?videoBox(x):null;if(alt)box.replaceWith(alt);else{im.src=imgSrc(x.id,0);box.classList.add("photo");}
+    const cr=$("#infoBody .credit");if(cr)cr.textContent=creditText(x,false);},{once:true});
   box.append(im);
   return box;
 }
@@ -645,6 +646,7 @@ function videoBox(x){
   box.append(btn);
   return box;
 }
+function creditText(x,anim){return anim?"Анимация: ExerciseDB.":(x.yt?"Видео: «"+(x.ych||"YouTube")+"» на YouTube.":"Фото: Free Exercise DB, общественное достояние.");}
 function openInfo(libId){
   const x=LIBMAP[libId];if(!x)return;
   const b=$("#infoBody");b.textContent="";
@@ -677,7 +679,7 @@ function openInfo(libId){
   yt.target="_blank";yt.rel="noopener";
   yt.addEventListener("click",ev=>{try{if(tg&&tg.openLink){ev.preventDefault();tg.openLink(yt.href);}}catch(e){}});
   b.append(yt);
-  b.append(el("p","credit",x.edb?"Анимация: ExerciseDB.":(x.yt?"Видео: «"+(x.ych||"YouTube")+"» на YouTube.":"Фото: Free Exercise DB, общественное достояние.")));
+  b.append(el("p","credit",creditText(x,!!x.edb)));
   openSheet("infoSheet");
   $("#infoSheet .body").scrollTop=0;
 }

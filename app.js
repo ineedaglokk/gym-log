@@ -618,16 +618,36 @@ $("#customAdd").addEventListener("click",()=>{
   saveProg();renderProgEditor();closeSheet();toast("Добавлено — настрой подходы и вес");
 });
 
+/* technique video: a light preview first, the YouTube player only after a tap */
+function videoBox(x){
+  const box=el("div","vid"+(x.ys?" vert":""));
+  const btn=el("button","vidplay");btn.type="button";btn.setAttribute("aria-label","Смотреть видео: "+x.name);
+  const im=el("img");im.src="https://i.ytimg.com/vi/"+x.yt+"/hqdefault.jpg";im.alt="";
+  btn.append(im,el("span","play","▶"));
+  btn.addEventListener("click",()=>{
+    const f=document.createElement("iframe");
+    f.src="https://www.youtube-nocookie.com/embed/"+x.yt+"?autoplay=1&playsinline=1&rel=0&modestbranding=1";
+    f.title="Техника: "+x.name;
+    f.setAttribute("allow","autoplay; encrypted-media; picture-in-picture; fullscreen");
+    f.setAttribute("allowfullscreen","");
+    box.textContent="";box.append(f);
+  });
+  box.append(btn);
+  return box;
+}
 function openInfo(libId){
   const x=LIBMAP[libId];if(!x)return;
   const b=$("#infoBody");b.textContent="";
   $("#infoBarTitle").textContent=x.group;
-  const demo=el("button","demo");demo.type="button";demo.setAttribute("aria-label","Пауза или воспроизведение");
-  const a=el("img","a");a.src=imgSrc(x.id,0);a.alt=x.name+": начало движения";
-  const c=el("img","b");c.src=imgSrc(x.id,1);c.alt=x.name+": конец движения";
-  demo.append(a,c,el("span","tag","Нажми — пауза"));
-  demo.addEventListener("click",()=>demo.classList.toggle("paused"));
-  b.append(demo);
+  if(x.yt)b.append(videoBox(x));
+  else{
+    const demo=el("button","demo");demo.type="button";demo.setAttribute("aria-label","Пауза или воспроизведение");
+    const a=el("img","a");a.src=imgSrc(x.id,0);a.alt=x.name+": начало движения";
+    const c=el("img","b");c.src=imgSrc(x.id,1);c.alt=x.name+": конец движения";
+    demo.append(a,c,el("span","tag","Нажми — пауза"));
+    demo.addEventListener("click",()=>demo.classList.toggle("paused"));
+    b.append(demo);
+  }
   const h=el("h2",null,x.name);h.id="infoTitle";b.append(h);
   const facts=el("div","facts");
   [x.equip,x.level,x.sets+" × "+(x.lo===x.hi?x.hi:x.lo+"–"+x.hi)+(x.unit==="секунды"?" с":"")].forEach(t=>facts.append(el("span","fact",t)));
@@ -641,12 +661,12 @@ function openInfo(libId){
     add.addEventListener("click",()=>{if(addFromLib(x)){add.disabled=true;add.textContent="✓ Добавлено";if(stack.indexOf("libSheet")>=0)renderLibList();}});
     b.append(add);
   }
-  const yt=el("a","btn wide yt","Видео техники на YouTube");
-  yt.href="https://www.youtube.com/results?search_query="+encodeURIComponent(x.name+" техника выполнения");
+  const yt=el("a","btn wide yt",x.yt?"Открыть видео в YouTube":"Найти видео техники на YouTube");
+  yt.href=x.yt?"https://www.youtube.com/watch?v="+x.yt:"https://www.youtube.com/results?search_query="+encodeURIComponent(x.name+" техника выполнения");
   yt.target="_blank";yt.rel="noopener";
   yt.addEventListener("click",ev=>{try{if(tg&&tg.openLink){ev.preventDefault();tg.openLink(yt.href);}}catch(e){}});
   b.append(yt);
-  b.append(el("p","credit","Фото: Free Exercise DB, общественное достояние."));
+  b.append(el("p","credit",x.yt?"Видео: «"+(x.ych||"YouTube")+"» на YouTube.":"Фото: Free Exercise DB, общественное достояние."));
   openSheet("infoSheet");
   $("#infoSheet .body").scrollTop=0;
 }

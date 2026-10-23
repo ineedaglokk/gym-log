@@ -270,6 +270,12 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .morebody{display:flex;flex-direction:column;gap:18px;padding-top:8px}
 #progPane{display:flex;flex-direction:column;gap:12px}
 #progBody{display:flex;flex-direction:column;gap:12px}
+.vid{position:relative;width:100%;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000}
+.vid.vert{aspect-ratio:9/16;width:auto;height:min(62vh,560px);align-self:center}
+.vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vidplay{position:absolute;inset:0;border:0;padding:0;background:#000;cursor:pointer}
+.vidplay img{width:100%;height:100%;object-fit:cover;opacity:.92}
+.vidplay .play{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:rgb(0 0 0 / .6);color:#fff;font-size:26px;line-height:64px;text-align:center;padding-left:4px}
 .closebtn{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:var(--sunk);font-size:18px;line-height:1;cursor:pointer;color:var(--fg)}
 
 /* exercise card */

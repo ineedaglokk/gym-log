@@ -241,6 +241,35 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .tpl b{font-weight:600;font-size:15px}
 .tpl small{font-size:12px;color:var(--muted)}
 #wkChips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* --- calm pass --- */
+.statusline{justify-content:center;min-height:18px;margin-top:-6px}
+.status{font-size:12px}
+.exhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.exhead h3{font-size:16px;min-width:0}
+.meta{margin:-4px 0 0;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ibtn{border:0;background:var(--sunk);color:var(--muted)}
+.sets .lab{text-transform:none;letter-spacing:0;font-size:12px}
+.ex{gap:10px;padding:12px 12px 14px}
+.bwrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px}
+.bwrow label{color:var(--muted);font-size:14px}
+.bwrow input.num{width:76px;height:40px;font-size:19px}
+.linkbtn.quiet{color:var(--muted)}
+.wkseg{align-self:stretch;overflow-x:auto}
+.wkseg button{flex:1;white-space:nowrap}
+.seg.wide2{align-self:stretch}.seg.wide2 button{flex:1;padding:7px 10px}
+.wkname{width:100%;border:0;border-bottom:1px solid transparent;background:transparent;color:var(--fg);font:600 26px/1.15 var(--display);text-transform:uppercase;padding:2px 0}
+.wkname:focus{outline:0;border-bottom-color:var(--accent)}
+.pc{padding:8px 10px}
+.pc-open{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;cursor:pointer;color:var(--fg)}
+.pc-open .chev{flex:none;color:var(--muted);font-size:18px;margin-left:auto;padding-left:6px}
+.more{border-top:1px solid var(--line);padding-top:10px}
+.more summary{cursor:pointer;color:var(--muted);font-size:14px;list-style:none;padding:6px 0}
+.more summary::-webkit-details-marker{display:none}
+.more summary::before{content:"▸ "}
+.more[open] summary::before{content:"▾ "}
+.morebody{display:flex;flex-direction:column;gap:18px;padding-top:8px}
+#progPane{display:flex;flex-direction:column;gap:12px}
+#progBody{display:flex;flex-direction:column;gap:12px}
 .closebtn{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:var(--sunk);font-size:18px;line-height:1;cursor:pointer;color:var(--fg)}
 
 /* exercise card */
@@ -289,87 +318,72 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <span class="status" id="saveStatus">Загружаю журнал…</span>
       <button type="button" class="linkbtn" id="toToday" hidden>К сегодняшнему дню</button>
     </div>
-    <div class="banner" id="progBanner" hidden>
-      <span>Это стандартная программа фулбоди. Свою можно собрать во вкладке «Программа».</span>
-      <button type="button" class="linkbtn" id="toProg">Собрать</button>
-    </div>
-    <div class="card" id="wkRow" hidden>
-      <span class="eyebrow">Тренировка</span>
-      <div class="chips" id="wkChips" role="group" aria-label="Какая тренировка"></div>
-      <p class="target" id="wkNote" style="margin:0" hidden></p>
-    </div>
-    <div class="bw">
-      <label for="bwInput">Вес тела утром</label>
+    <div class="seg wkseg" id="wkChips" role="group" aria-label="Какая тренировка" hidden></div>
+    <ol class="exlist" id="exList"></ol>
+    <div class="bwrow">
+      <label for="bwInput">Вес тела</label>
       <span class="unitfield"><input class="num" id="bwInput" inputmode="decimal" autocomplete="off" placeholder="—"> кг</span>
     </div>
-    <ol class="exlist" id="exList"></ol>
     <div class="foot">
-      <button type="button" class="linkbtn" id="delBtn" hidden>Удалить запись за этот день</button>
+      <button type="button" class="linkbtn quiet" id="delBtn" hidden>Удалить запись за этот день</button>
       <div class="confirm" id="delConfirm" hidden>
         <span>Удалить всё за этот день?</span>
         <button type="button" class="btn danger" id="delYes">Удалить</button>
         <button type="button" class="btn" id="delNo">Отмена</button>
       </div>
     </div>
-    <p class="note">Пиши повторы и вес каждого подхода — всё сохраняется само. Сделал в подходе верх диапазона — в следующий раз вес этого подхода уже будет увеличен и подсвечен зелёным. Кнопка «i» рядом с названием открывает технику.</p>
     <p class="note" id="storageNote" hidden>Журнал открыт не через Telegram, поэтому записи хранятся только в этом браузере. Открой его через бота — тогда всё сохранится в облаке Telegram.</p>
   </section>
 
   <!-- PROGRAM -->
   <section id="v-prog" role="tabpanel" aria-labelledby="t-prog" hidden>
-    <div>
-      <span class="eyebrow">Конструктор</span>
-      <h2>Твоя программа</h2>
-    </div>
-    <div class="statusline"><span class="status" id="progStatus">Добавляй упражнения из библиотеки — всё сохраняется само.</span></div>
     <div class="chips wktabs" id="wkTabs" role="group" aria-label="Тренировки программы"></div>
-    <div class="card">
-      <label class="eyebrow" for="wkName">Название тренировки</label>
-      <input class="pe-name" id="wkName" maxlength="30" autocomplete="off">
-      <span class="eyebrow" style="margin-top:4px">Дни этой тренировки</span>
-      <div class="daysrow" id="daysRow" role="group" aria-label="Дни этой тренировки"></div>
-      <p class="target" id="daysHint" style="margin:0" hidden></p>
-      <button type="button" class="linkbtn danger-link" id="wkDel" hidden style="align-self:flex-start">Удалить эту тренировку</button>
-      <div class="confirm" id="wkDelConfirm" hidden style="justify-content:flex-start">
-        <span id="wkDelMsg"></span>
-        <button type="button" class="btn danger" id="wkDelYes">Удалить</button>
-        <button type="button" class="btn" id="wkDelNo">Отмена</button>
-      </div>
-    </div>
+    <input class="wkname" id="wkName" maxlength="30" autocomplete="off" aria-label="Название тренировки">
+    <div class="daysrow" id="daysRow" role="group" aria-label="Дни этой тренировки"></div>
     <div class="exlist" id="peList"></div>
-    <button type="button" class="btn wide primary" id="peAdd">+ Добавить из библиотеки</button>
+    <button type="button" class="btn wide primary" id="peAdd">+ Добавить упражнение</button>
 
-    <div class="card">
-      <span class="eyebrow">Готовые схемы</span>
-      <p class="target" style="margin:0">Быстрый старт: загрузи схему и поправь упражнения под себя.</p>
-      <div class="tpls" id="tplList"></div>
-      <div class="confirm" id="tplConfirm" hidden style="justify-content:flex-start">
-        <span id="tplMsg"></span>
-        <button type="button" class="btn primary" id="tplYes">Заменить</button>
-        <button type="button" class="btn" id="tplNo">Отмена</button>
+    <details class="more">
+      <summary>Готовые схемы, обмен и настройки</summary>
+      <div class="morebody">
+        <div class="share">
+          <span class="eyebrow">Готовые схемы</span>
+          <div class="tpls" id="tplList"></div>
+          <div class="confirm" id="tplConfirm" hidden style="justify-content:flex-start">
+            <span id="tplMsg"></span>
+            <button type="button" class="btn primary" id="tplYes">Заменить</button>
+            <button type="button" class="btn" id="tplNo">Отмена</button>
+          </div>
+        </div>
+        <div class="share">
+          <span class="eyebrow">Поделиться программой</span>
+          <div class="rowbtns">
+            <button type="button" class="btn primary" id="shareSend">Отправить другу</button>
+            <button type="button" class="btn" id="shareCopy">Скопировать код</button>
+          </div>
+          <textarea id="shareOut" readonly hidden aria-label="Код программы"></textarea>
+        </div>
+        <div class="share">
+          <span class="eyebrow">Программа друга</span>
+          <textarea id="importIn" placeholder="Вставь код программы" aria-label="Код программы друга"></textarea>
+          <button type="button" class="btn" id="importBtn">Загрузить</button>
+          <div class="confirm" id="importConfirm" hidden>
+            <span id="importMsg"></span>
+            <button type="button" class="btn primary" id="importYes">Заменить</button>
+            <button type="button" class="btn" id="importNo">Отмена</button>
+          </div>
+        </div>
+        <div class="share">
+          <button type="button" class="linkbtn danger-link" id="wkDel" hidden style="align-self:flex-start">Удалить эту тренировку</button>
+          <div class="confirm" id="wkDelConfirm" hidden style="justify-content:flex-start">
+            <span id="wkDelMsg"></span>
+            <button type="button" class="btn danger" id="wkDelYes">Удалить</button>
+            <button type="button" class="btn" id="wkDelNo">Отмена</button>
+          </div>
+          <button type="button" class="linkbtn quiet" id="peReset" style="align-self:flex-start">Вернуть стандартную программу</button>
+        </div>
       </div>
-    </div>
-
-    <div class="card share">
-      <span class="eyebrow">Поделиться программой</span>
-      <p class="target" style="margin:0">Отправь код другу. Он вставит его у себя в этой вкладке — программа будет такая же, а записи свои.</p>
-      <div class="rowbtns">
-        <button type="button" class="btn primary" id="shareSend">Отправить в Telegram</button>
-        <button type="button" class="btn" id="shareCopy">Скопировать код</button>
-      </div>
-      <textarea id="shareOut" readonly hidden aria-label="Код программы"></textarea>
-    </div>
-    <div class="card share">
-      <span class="eyebrow">Загрузить программу друга</span>
-      <textarea id="importIn" placeholder="Вставь сюда код программы" aria-label="Код программы друга"></textarea>
-      <button type="button" class="btn" id="importBtn">Загрузить</button>
-      <div class="confirm" id="importConfirm" hidden>
-        <span id="importMsg"></span>
-        <button type="button" class="btn primary" id="importYes">Заменить</button>
-        <button type="button" class="btn" id="importNo">Отмена</button>
-      </div>
-    </div>
-    <button type="button" class="linkbtn" id="peReset" style="align-self:center">Вернуть стандартную программу</button>
+    </details>
   </section>
 
   <!-- YEAR: calendar + progress -->
@@ -379,22 +393,19 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <div style="text-align:center"><span class="eyebrow" id="yearCount">0 тренировок</span><h2 id="yearTitle">2026</h2></div>
       <button type="button" class="iconbtn" id="nextYear" aria-label="Следующий год">›</button>
     </div>
-    <div class="stats">
-      <div class="stat"><div class="v" id="stMonth">0</div><div class="k" id="stMonthK">в этом месяце</div></div>
-      <div class="stat"><div class="v" id="stTotal">0</div><div class="k">всего тренировок</div></div>
-      <div class="stat"><div class="v" id="stLast">—</div><div class="k">последняя</div></div>
-    </div>
-    <div class="seg" id="yearSeg" role="group" aria-label="Что показать">
+    <div class="seg wide2" id="yearSeg" role="group" aria-label="Что показать">
       <button type="button" data-y="cal" aria-pressed="true">Календарь</button>
       <button type="button" data-y="prog" aria-pressed="false">Прогресс</button>
     </div>
-    <div id="calPane">
-      <div class="legend" style="margin-bottom:10px"><span><i class="sw done"></i>тренировка</span><span><i class="sw today"></i>сегодня</span><span id="planLegend">Нажми на день, чтобы открыть или заполнить его.</span></div>
-      <div class="months" id="months"></div>
-    </div>
-    <div id="progPane" hidden style="display:flex;flex-direction:column;gap:12px">
+    <div id="calPane"><div class="months" id="months"></div></div>
+    <div id="progPane" hidden>
+      <div class="stats">
+        <div class="stat"><div class="v" id="stMonth">0</div><div class="k" id="stMonthK">в этом месяце</div></div>
+        <div class="stat"><div class="v" id="stTotal">0</div><div class="k">всего</div></div>
+        <div class="stat"><div class="v" id="stLast">—</div><div class="k">последняя</div></div>
+      </div>
       <div class="picker" id="picker" role="group" aria-label="Упражнение"></div>
-      <div id="progBody" style="display:flex;flex-direction:column;gap:12px"></div>
+      <div id="progBody"></div>
     </div>
   </section>
 </main>

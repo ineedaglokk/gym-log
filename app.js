@@ -623,6 +623,7 @@ function videoBox(x){
   const box=el("div","vid"+(x.ys?" vert":""));
   const btn=el("button","vidplay");btn.type="button";btn.setAttribute("aria-label","Смотреть видео: "+x.name);
   const im=el("img");im.src="https://i.ytimg.com/vi/"+x.yt+"/hqdefault.jpg";im.alt="";
+  im.addEventListener("error",()=>{if(!im.dataset.fb){im.dataset.fb="1";im.src=imgSrc(x.id,0);}});
   btn.append(im,el("span","play","▶"));
   btn.addEventListener("click",()=>{
     const f=document.createElement("iframe");

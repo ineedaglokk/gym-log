@@ -104,7 +104,7 @@ function fromLib(x,W){
   return {id:id,lib:x.id,name:x.name,sets:x.sets||3,lo:x.lo||10,hi:Math.max(x.lo||10,x.hi||12),
     step:x.step!=null?x.step:2.5,start:other?other.start:0,unit:UNITS.indexOf(x.unit)>=0?x.unit:"кг"};
 }
-function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.openEx={};}
+function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.editKey=null;}
 
 /* ready-made splits for friends */
 const T=(lib,o)=>Object.assign({lib:lib},o||{});
@@ -163,7 +163,7 @@ const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"cal",
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
-  libGroup:"Все",libQuery:"",openEx:{},pwi:0,logW:null,curW:null};
+  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null};
 
 /* ================= storage ================= */
 const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
@@ -441,9 +441,8 @@ function pnum(val,mode,onset,label){
 }
 function thumb(e){
   const x=e.lib&&LIBMAP[e.lib];
-  if(x&&x.img){const im=el("img","pc-thumb");im.src=imgSrc(x.img,0);im.alt="";im.loading="lazy";return im;}
-  if(x)return tile(x,"pc-thumb");
-  return el("span","pc-thumb blank",(e.name||"?").slice(0,1).toUpperCase());
+  if(x)return pic(x,"pc-media");
+  return el("span","pc-media blank",(e.name||"?").slice(0,1).toUpperCase());
 }
 function renderProgEditor(){
   const W=PW(),EX=W.ex;
@@ -455,14 +454,20 @@ function renderProgEditor(){
   if(!EX.length)list.append(el("div","empty","В «"+W.name+"» пока нет упражнений. Нажми кнопку ниже и выбери их в библиотеке."));
   EX.forEach((e,i)=>{
     const card=el("div","pc");
-    const key=W.id+"/"+e.id,open=!!S.openEx[key];
-    const row=el("button","pc-open");row.type="button";row.setAttribute("aria-expanded",String(open));
+    const key=W.id+"/"+e.id,open=S.editKey===key;
+    const row=el("button","pc-open");row.type="button";row.setAttribute("aria-haspopup","dialog");
     const main=el("div","pc-main");
     main.append(el("h3",null,e.name),el("p","target",e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"")));
-    row.append(thumb(e),main,el("span","chev",open?"⌃":"⌄"));
-    row.addEventListener("click",()=>{S.openEx[key]=!open;renderProgEditor();});
+    row.append(thumb(e),main);
+    row.addEventListener("click",()=>{S.editKey=key;renderProgEditor();openSheet("exSheet");$("#exSheet .body").scrollTop=0;});
     card.append(row);
+    list.append(card);
     if(open){
+      /* settings of one exercise live in a bottom sheet, so the grid never jumps around */
+      $("#exSheetTitle").textContent=W.name;
+      const box=$("#exEditBody");box.textContent="";
+      const card=box;
+      card.append(thumb(e));
       const name=el("input","pe-name");name.value=e.name;name.maxLength=60;name.setAttribute("aria-label","Название");
       name.addEventListener("input",()=>{e.name=name.value.slice(0,60);saveProg();});
       name.addEventListener("change",()=>{if(!name.value.trim())e.name="Упражнение";renderProgEditor();});
@@ -486,13 +491,13 @@ function renderProgEditor(){
       const mv=(d,txt,lab)=>{const b=el("button","mini",txt);b.type="button";b.setAttribute("aria-label",lab);const j=i+d;b.disabled=j<0||j>=EX.length;
         b.addEventListener("click",()=>{const t=EX[i];EX[i]=EX[j];EX[j]=t;haptic("tap");renderProgEditor();saveProg();});return b;};
       const del=el("button","btn","Убрать");del.type="button";
-      del.addEventListener("click",()=>{EX.splice(i,1);delete S.openEx[key];haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
+      del.addEventListener("click",()=>{EX.splice(i,1);S.editKey=null;closeSheet();haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
       {const tb=el("button","btn","Техника");tb.type="button";tb.addEventListener("click",()=>openTech(e.lib,e.name));tools.append(tb);}
       tools.append(mv(-1,"↑","Выше"),mv(1,"↓","Ниже"),el("span","grow"),del);
       card.append(tools);
     }
-    list.append(card);
   });
+  if(S.editKey&&!EX.some(e=>W.id+"/"+e.id===S.editKey)&&stack.indexOf("exSheet")>=0){S.editKey=null;closeSheet();}
   const full=EX.length>=MAX_EX||totalEx()>=MAX_TOTAL;
   $("#peAdd").textContent=full?"Достигнут лимит упражнений":"+ Добавить упражнение";
   $("#peAdd").disabled=full;
@@ -580,6 +585,7 @@ const stack=[];
 function openSheet(id){
   const s=document.getElementById(id);
   if(stack.indexOf(id)<0)stack.push(id);
+  s.style.zIndex=String(30+stack.indexOf(id));   /* the sheet opened last is always on top */
   s.hidden=false;document.body.style.overflow="hidden";
   try{if(tg&&tg.BackButton){tg.BackButton.show();}}catch(e){}
 }
@@ -587,6 +593,7 @@ function closeSheet(){
   const id=stack.pop();if(!id)return;
   document.getElementById(id).hidden=true;
   if(id==="infoSheet")$("#infoBody").textContent="";
+  if(id==="exSheet"){S.editKey=null;$("#exEditBody").textContent="";}
   if(id==="webSheet"){clearTimeout(webT);$("#webFrame").src="about:blank";}
   if(!stack.length){document.body.style.overflow="";try{if(tg&&tg.BackButton)tg.BackButton.hide();}catch(e){}}
 }
@@ -643,18 +650,19 @@ function openWeb(name,x){
   openSheet("webSheet");
 }
 function openTech(libId,name){const x=LIBMAP[libId]||null;openWeb(name||(x&&x.name)||"",x);}
-function pic(x){
-  if(!x.img)return tile(x);
-  const w=el("span","lc-img");const im=el("img");im.src=imgSrc(x.img,0);im.alt="";im.loading="lazy";im.decoding="async";
-  im.addEventListener("error",()=>{w.replaceWith(tile(x));},{once:true});
+/* card picture: the exercise photo, or an equipment icon on the muscle-group colour */
+function pic(x,cls){
+  if(!x.img)return tile(x,cls+" ico");
+  const w=el("span",cls+" photo");const im=el("img");im.src=imgSrc(x.img,0);im.alt="";im.loading="lazy";im.decoding="async";
+  im.addEventListener("error",()=>{w.replaceWith(tile(x,cls+" ico"));},{once:true});
   w.append(im);return w;
 }
 function libCard(x){
   const c=el("div","lc g"+Math.max(0,GROUPS.indexOf(x.group)));
   const op=el("button","lc-open");op.type="button";
   op.setAttribute("aria-label","Открыть: "+x.name);
-  if(x.img)c.classList.add("has-img");
-  op.append(pic(x),el("span","lc-name",x.name),el("span","lc-eq",x.equip||""));
+  const tx=el("span","lc-text");tx.append(el("span","lc-name",x.name),el("span","lc-eq",x.equip||""));
+  op.append(pic(x,"lc-media"),tx);
   op.addEventListener("click",()=>openTech(x.id));
   const on=inProg(x.id);
   const add=el("button","lc-add"+(on?" done":""),on?"✓":"+");add.type="button";
@@ -687,8 +695,8 @@ $("#customAdd").addEventListener("click",()=>{
   if(W.ex.length>=MAX_EX||totalEx()>=MAX_TOTAL){toast("Достигнут лимит упражнений в программе");return;}
   const id=rid("x");
   W.ex.push({id:id,lib:null,name:n.slice(0,60),sets:3,lo:10,hi:12,step:2.5,start:0,unit:"кг"});
-  S.openEx[W.id+"/"+id]=true;$("#customName").value="";
-  saveProg();renderProgEditor();closeSheet();toast("Добавлено — настрой подходы и вес");
+  $("#customName").value="";
+  saveProg();closeSheet();S.editKey=W.id+"/"+id;renderProgEditor();openSheet("exSheet");toast("Добавлено — настрой подходы и вес");
 });
 
 /* exercise window inside the app: photos, short facts, own notes where we have them, link to the FitPush page */

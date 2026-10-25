@@ -207,28 +207,28 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 
 /* library rows */
 /* library: square cards — colour = muscle group, icon = equipment */
-.libgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-@media (min-width:430px){.libgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.lc{position:relative;content-visibility:auto;contain-intrinsic-size:auto 170px}
-.lc-open{width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px;border:0;border-radius:16px;background:var(--tbg);color:var(--fg);text-align:left;cursor:pointer;overflow:hidden}
+.libgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.lc{position:relative;content-visibility:auto;contain-intrinsic-size:auto 230px}
+.lc-open{width:100%;display:flex;flex-direction:column;align-items:stretch;padding:0;border:0;border-radius:16px;background:var(--tbg);color:var(--fg);text-align:left;cursor:pointer;overflow:hidden}
 .lc-open:active{transform:scale(.98)}
-.lc-open .tile{width:58px;height:58px;background:transparent;padding:0;margin:2px 0 0 -2px}
-.lc-name{margin-top:auto;font-weight:600;font-size:14px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.lc-eq{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.lc-add{position:absolute;top:8px;right:8px;width:36px;height:36px;border-radius:50%;border:0;background:var(--surface);color:var(--accent);font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;box-shadow:0 1px 3px rgb(0 0 0 / .14)}
+.lc-text{display:flex;flex-direction:column;gap:3px;padding:10px 12px 12px}
+.lc-name{font-weight:600;font-size:15px;line-height:1.25;min-height:2.5em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.lc-eq{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* shared picture area for library and program cards */
+.lc-media,.pc-media{display:grid;place-items:center;width:100%;aspect-ratio:3/2;overflow:hidden;border-radius:0;padding:0}
+.lc-media.photo,.pc-media.photo{background:#fff}
+.lc-media img,.pc-media img{width:100%;height:100%;object-fit:cover;display:block}
+.lc-media.ico svg,.pc-media.ico svg{width:30%;height:auto;max-width:64px;aspect-ratio:1/1}
+.pc-media.blank{background:var(--sunk);color:var(--muted);font:600 28px var(--display)}
+.lc-media.ico,.pc-media.ico{display:grid;padding:0;border-radius:0}
+.lc-add{position:absolute;top:8px;right:8px;width:38px;height:38px;border-radius:50%;border:0;background:var(--surface);color:var(--accent);font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;box-shadow:0 1px 3px rgb(0 0 0 / .14)}
 .lc-add.done{background:var(--up-soft);color:var(--up);font-size:17px;cursor:default}
 .tile{display:inline-grid;place-items:center;color:var(--tfg);background:var(--tbg);border-radius:10px;padding:6px}
 .tile svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
-.pc-thumb.tile{padding:8px}
 .lc,.tile{--tbg:hsl(var(--h) 38% 93%);--tfg:hsl(var(--h) 45% 36%)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) :is(.lc,.tile){--tbg:hsl(var(--h) 18% 17%);--tfg:hsl(var(--h) 55% 72%)}}
 :root[data-theme="dark"] :is(.lc,.tile){--tbg:hsl(var(--h) 18% 17%);--tfg:hsl(var(--h) 55% 72%)}
 .g0{--h:150}.g1{--h:212}.g2{--h:345}.g3{--h:28}.g4{--h:262}.g5{--h:292}.g6{--h:46}.g7{--h:182}.g8{--h:95}.g9{--h:5}
-.lc.has-img .lc-open{padding:0 0 10px;gap:3px}
-.lc-img{display:block;width:100%;flex:1 1 0;min-height:0;background:#fff;overflow:hidden}
-.lc-img img{width:100%;height:100%;object-fit:cover;display:block}
-.lc.has-img .lc-name,.lc.has-img .lc-eq{padding:0 10px}
-.lc.has-img .lc-name{margin-top:7px;-webkit-line-clamp:2;font-size:13.5px}
 .photos{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:0 max(16px,env(safe-area-inset-left,0px))}
 .photos::-webkit-scrollbar{display:none}
 .photos figure{flex:0 0 88%;margin:0;scroll-snap-align:center;position:relative;border-radius:14px;overflow:hidden;background:#fff;aspect-ratio:3/2}
@@ -288,7 +288,14 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .seg.wide2{align-self:stretch}.seg.wide2 button{flex:1;padding:7px 10px}
 .wkname{width:100%;border:0;border-bottom:1px solid transparent;background:transparent;color:var(--fg);font:600 26px/1.15 var(--display);text-transform:uppercase;padding:2px 0}
 .wkname:focus{outline:0;border-bottom-color:var(--accent)}
-.pc{padding:8px 10px}
+.pegrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pegrid>.empty{grid-column:1/-1}
+.pc{padding:0;gap:0;overflow:hidden;border-radius:16px}
+.pc .pc-open{flex-direction:column;align-items:stretch;gap:0}
+.pc .pc-main{padding:10px 12px 12px}
+.pc .pc-main h3{white-space:normal;font-size:15px;line-height:1.25;min-height:2.5em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.exedit .pc-media{border-radius:14px;max-height:34vh}
+.exedit .pe-name{flex:none;height:44px;font-size:17px}
 .pc-open{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;cursor:pointer;color:var(--fg)}
 .pc-open .chev{flex:none;color:var(--muted);font-size:18px;margin-left:auto;padding-left:6px}
 .more{border-top:1px solid var(--line);padding-top:10px}
@@ -377,7 +384,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
     <div class="chips wktabs" id="wkTabs" role="group" aria-label="Тренировки программы"></div>
     <input class="wkname" id="wkName" maxlength="30" autocomplete="off" aria-label="Название тренировки">
     <div class="daysrow" id="daysRow" role="group" aria-label="Дни этой тренировки"></div>
-    <div class="exlist" id="peList"></div>
+    <div class="pegrid" id="peList"></div>
     <button type="button" class="btn wide primary" id="peAdd">+ Добавить упражнение</button>
 
     <details class="more">
@@ -472,6 +479,15 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
   <div class="panel">
     <div class="bar"><h3 id="webTitle">Техника</h3><button type="button" class="linkbtn" id="webFp" hidden>FitPush ↗</button><button type="button" class="closebtn" data-close aria-label="Закрыть">✕</button></div>
     <div class="body webbody"><p class="webload" id="webLoad">Загружаю страницу…</p><iframe id="webFrame" title="Страница упражнения" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="no-referrer"></iframe></div>
+  </div>
+</div>
+
+<!-- settings of one exercise in the program -->
+<div class="sheet" id="exSheet" hidden role="dialog" aria-modal="true" aria-labelledby="exSheetTitle">
+  <div class="backdrop" data-close></div>
+  <div class="panel">
+    <div class="bar"><h3 id="exSheetTitle">Упражнение</h3><button type="button" class="closebtn" data-close aria-label="Готово">✕</button></div>
+    <div class="body exedit" id="exEditBody"></div>
   </div>
 </div>
 

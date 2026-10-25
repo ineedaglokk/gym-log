@@ -21,13 +21,13 @@ function fpDefaults(g,ei,name){
   return {sets:3,lo:rep[0],hi:rep[1],step:step,unit:body?"свой вес + кг":(hand?"кг в руке":"кг")};
 }
 const LIB=[],LIBMAP={},BYSLUG={};
-(window.GYM_LIB||[]).forEach(x=>{LIBMAP[x.id]=x;if(x.fp)BYSLUG[x.fp]=x;});
+(window.GYM_LIB||[]).forEach(x=>{LIBMAP[x.id]=x;x.img=x.id;if(x.fp)BYSLUG[x.fp]=x;});
 FPD.x.forEach(r=>{
   const slug=r[0],name=r[1],g=FPD.g[r[2]];
   let x=BYSLUG[slug];
   if(x){LIBMAP["f"+hash36(slug)]=x;}
   else{x=Object.assign({id:"f"+hash36(slug)},fpDefaults(g,r[3],name));LIBMAP[x.id]=x;}
-  x.fp=slug;x.name=name;x.group=g;x.equip=FPD.e[r[3]];x.ei=r[3];LIB.push(x);
+  x.fp=slug;x.name=name;x.group=g;x.equip=FPD.e[r[3]];x.ei=r[3];x.img=r[4]||x.img||null;LIB.push(x);
 });
 (window.GYM_LIB||[]).forEach(x=>{if(!x.fp){x.group=FPD.g[x.g]||"Пресс";x.equip=FPD.e[x.e]||x.equip;x.ei=x.e;LIB.push(x);}});
 LIB.forEach(x=>{x.sk=norm1(x.name+" "+x.equip+" "+x.group);});
@@ -441,7 +441,8 @@ function pnum(val,mode,onset,label){
 }
 function thumb(e){
   const x=e.lib&&LIBMAP[e.lib];
-  if(x){const t=tile(x,"pc-thumb");return t;}
+  if(x&&x.img){const im=el("img","pc-thumb");im.src=imgSrc(x.img,0);im.alt="";im.loading="lazy";return im;}
+  if(x)return tile(x,"pc-thumb");
   return el("span","pc-thumb blank",(e.name||"?").slice(0,1).toUpperCase());
 }
 function renderProgEditor(){
@@ -622,12 +623,19 @@ function openFp(x){
   try{if(tg&&tg.openLink){tg.openLink(u);return;}}catch(e){}
   window.open(u,"_blank","noopener");
 }
-function openTech(libId){const x=LIBMAP[libId];if(!x)return;if(x.fp)openFp(x);else openInfo(x.id);}
+function openTech(libId){openInfo(libId);}
+function pic(x){
+  if(!x.img)return tile(x);
+  const w=el("span","lc-img");const im=el("img");im.src=imgSrc(x.img,0);im.alt="";im.loading="lazy";im.decoding="async";
+  im.addEventListener("error",()=>{w.replaceWith(tile(x));},{once:true});
+  w.append(im);return w;
+}
 function libCard(x){
   const c=el("div","lc g"+Math.max(0,GROUPS.indexOf(x.group)));
   const op=el("button","lc-open");op.type="button";
-  op.setAttribute("aria-label",(x.fp?"Техника на FitPush: ":"Техника: ")+x.name);
-  op.append(tile(x),el("span","lc-name",x.name),el("span","lc-eq",x.equip||""));
+  op.setAttribute("aria-label","Открыть: "+x.name);
+  if(x.img)c.classList.add("has-img");
+  op.append(pic(x),el("span","lc-name",x.name),el("span","lc-eq",x.equip||""));
   op.addEventListener("click",()=>openTech(x.id));
   const on=inProg(x.id);
   const add=el("button","lc-add"+(on?" done":""),on?"✓":"+");add.type="button";
@@ -664,68 +672,36 @@ $("#customAdd").addEventListener("click",()=>{
   saveProg();renderProgEditor();closeSheet();toast("Добавлено — настрой подходы и вес");
 });
 
-/* looping technique animation, shown straight from the ExerciseDB server (nothing is copied here) */
-function animBox(x){
-  const box=el("div","anim");
-  const im=el("img");im.alt=x.name+": анимация техники";im.decoding="async";im.referrerPolicy="no-referrer";
-  im.src="https://static.exercisedb.dev/media/"+x.edb+".gif";
-  im.addEventListener("error",()=>{const alt=x.yt?videoBox(x):null;if(alt)box.replaceWith(alt);else{im.src=imgSrc(x.id,0);box.classList.add("photo");}
-    const cr=$("#infoBody .credit");if(cr)cr.textContent=creditText(x,false);},{once:true});
-  box.append(im);
-  return box;
-}
-/* technique video: a light preview first, the YouTube player only after a tap */
-function videoBox(x){
-  const box=el("div","vid"+(x.ys?" vert":""));
-  const btn=el("button","vidplay");btn.type="button";btn.setAttribute("aria-label","Смотреть видео: "+x.name);
-  const im=el("img");im.src="https://i.ytimg.com/vi/"+x.yt+"/hqdefault.jpg";im.alt="";
-  im.addEventListener("error",()=>{if(!im.dataset.fb){im.dataset.fb="1";im.src=imgSrc(x.id,0);}});
-  btn.append(im,el("span","play","▶"));
-  btn.addEventListener("click",()=>{
-    const f=document.createElement("iframe");
-    f.src="https://www.youtube-nocookie.com/embed/"+x.yt+"?autoplay=1&playsinline=1&rel=0&modestbranding=1";
-    f.title="Техника: "+x.name;
-    f.setAttribute("allow","autoplay; encrypted-media; picture-in-picture; fullscreen");
-    f.setAttribute("allowfullscreen","");
-    box.textContent="";box.append(f);
-  });
-  box.append(btn);
-  return box;
-}
-function creditText(x,anim){return anim?"Анимация: ExerciseDB.":(x.yt?"Видео: «"+(x.ych||"YouTube")+"» на YouTube.":"Фото: Free Exercise DB, общественное достояние.");}
+/* exercise window inside the app: photos, short facts, own notes where we have them, link to the FitPush page */
 function openInfo(libId){
   const x=LIBMAP[libId];if(!x)return;
   const b=$("#infoBody");b.textContent="";
-  $("#infoBarTitle").textContent=x.group;
-  if(x.edb)b.append(animBox(x));
-  else if(x.yt)b.append(videoBox(x));
-  else{
-    const demo=el("button","demo");demo.type="button";demo.setAttribute("aria-label","Пауза или воспроизведение");
-    const a=el("img","a");a.src=imgSrc(x.id,0);a.alt=x.name+": начало движения";
-    const c=el("img","b");c.src=imgSrc(x.id,1);c.alt=x.name+": конец движения";
-    demo.append(a,c,el("span","tag","Нажми — пауза"));
-    demo.addEventListener("click",()=>demo.classList.toggle("paused"));
-    b.append(demo);
+  $("#infoBarTitle").textContent=x.group||"Техника";
+  if(x.img){
+    const ph=el("div","photos");
+    [0,1].forEach(k=>{const f=el("figure");const im=el("img");im.src=imgSrc(x.img,k);im.alt=x.name+(k?": конец движения":": начало движения");im.decoding="async";
+      im.addEventListener("error",()=>{f.remove();},{once:true});
+      f.append(im,el("figcaption",null,k?"Конец":"Начало"));ph.append(f);});
+    b.append(ph);
   }
   const h=el("h2",null,x.name);h.id="infoTitle";b.append(h);
   const facts=el("div","facts");
-  [x.equip,x.level,x.sets+" × "+(x.lo===x.hi?x.hi:x.lo+"–"+x.hi)+(isTime(x)?tSuf(x):"")].forEach(t=>facts.append(el("span","fact",t)));
+  [x.equip,x.level,x.sets+" × "+(x.lo===x.hi?x.hi:x.lo+"–"+x.hi)+(isTime(x)?tSuf(x):"")].filter(Boolean).forEach(t=>facts.append(el("span","fact",t)));
   b.append(facts);
-  b.append(el("h4",null,"Мышцы"),el("p",null,x.muscles));
-  b.append(el("h4",null,"Как делать"));const ol=el("ol");(x.how||[]).forEach(t=>ol.append(el("li",null,t)));b.append(ol);
-  if(x.mistakes&&x.mistakes.length){b.append(el("h4",null,"Частые ошибки"));const ul=el("ul");x.mistakes.forEach(t=>ul.append(el("li",null,t)));b.append(ul);}
-  if(x.tip)b.append(el("div","tipbox",x.tip));
+  if(x.fp){
+    const fp=el("button","btn wide primary","Техника и видео на FitPush ↗");fp.type="button";
+    fp.addEventListener("click",()=>openFp(x));b.append(fp);
+  }
   if(!inProg(x.id)){
-    const add=el("button","btn wide primary","+ Добавить в «"+PW().name+"»");add.type="button";
+    const add=el("button","btn wide"+(x.fp?"":" primary"),"+ Добавить в «"+PW().name+"»");add.type="button";
     add.addEventListener("click",()=>{if(addFromLib(x)){add.disabled=true;add.textContent="✓ Добавлено";if(stack.indexOf("libSheet")>=0)renderLibList();}});
     b.append(add);
   }
-  const yt=el("a","btn wide yt",x.yt?"Видео-разбор на YouTube":"Найти видео техники на YouTube");
-  yt.href=x.yt?"https://www.youtube.com/watch?v="+x.yt:"https://www.youtube.com/results?search_query="+encodeURIComponent(x.name+" техника выполнения");
-  yt.target="_blank";yt.rel="noopener";
-  yt.addEventListener("click",ev=>{try{if(tg&&tg.openLink){ev.preventDefault();tg.openLink(yt.href);}}catch(e){}});
-  b.append(yt);
-  b.append(el("p","credit",creditText(x,!!x.edb)));
+  if(x.muscles){b.append(el("h4",null,"Мышцы"),el("p",null,x.muscles));}
+  if(x.how&&x.how.length){b.append(el("h4",null,"Как делать"));const ol=el("ol");x.how.forEach(t=>ol.append(el("li",null,t)));b.append(ol);}
+  if(x.mistakes&&x.mistakes.length){b.append(el("h4",null,"Частые ошибки"));const ul=el("ul");x.mistakes.forEach(t=>ul.append(el("li",null,t)));b.append(ul);}
+  if(x.tip)b.append(el("div","tipbox",x.tip));
+  b.append(el("p","credit",(x.img?"Фото: Free Exercise DB, общественное достояние. ":"")+(x.fp?"Техника и видео — на fitpush.ru.":"")));
   openSheet("infoSheet");
   $("#infoSheet .body").scrollTop=0;
 }

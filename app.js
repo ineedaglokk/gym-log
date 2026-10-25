@@ -27,7 +27,7 @@ FPD.x.forEach(r=>{
   let x=BYSLUG[slug];
   if(x){LIBMAP["f"+hash36(slug)]=x;}
   else{x=Object.assign({id:"f"+hash36(slug)},fpDefaults(g,r[3],name));LIBMAP[x.id]=x;}
-  x.fp=slug;x.name=name;x.group=g;x.equip=FPD.e[r[3]];x.ei=r[3];x.img=r[4]||x.img||null;LIB.push(x);
+  x.fp=slug;x.name=name;x.group=g;x.equip=FPD.e[r[3]];x.ei=r[3];x.img=r[4]||x.img||null;x.jf=r[5]||x.jf||null;LIB.push(x);
 });
 (window.GYM_LIB||[]).forEach(x=>{if(!x.fp){x.group=FPD.g[x.g]||"Пресс";x.equip=FPD.e[x.e]||x.equip;x.ei=x.e;LIB.push(x);}});
 LIB.forEach(x=>{x.sk=norm1(x.name+" "+x.equip+" "+x.group);});
@@ -587,6 +587,7 @@ function closeSheet(){
   const id=stack.pop();if(!id)return;
   document.getElementById(id).hidden=true;
   if(id==="infoSheet")$("#infoBody").textContent="";
+  if(id==="webSheet"){clearTimeout(webT);$("#webFrame").src="about:blank";}
   if(!stack.length){document.body.style.overflow="";try{if(tg&&tg.BackButton)tg.BackButton.hide();}catch(e){}}
 }
 document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",closeSheet));
@@ -623,7 +624,24 @@ function openFp(x){
   try{if(tg&&tg.openLink){tg.openLink(u);return;}}catch(e){}
   window.open(u,"_blank","noopener");
 }
-function openTech(libId){openInfo(libId);}
+/* built-in browser: the JEFIT page of the exercise, inside the app */
+const JF_URL=jf=>"https://www.jefit.com/exercises/"+jf;
+let webT=null;
+function openWeb(x){
+  const f=$("#webFrame"),ld=$("#webLoad");
+  $("#webTitle").textContent=x.name;
+  const fpb=$("#webFp");fpb.hidden=!x.fp;fpb.onclick=()=>openFp(x);
+  ld.textContent="Загружаю страницу…";ld.hidden=false;
+  f.onload=()=>{if(f.src!=="about:blank"){clearTimeout(webT);ld.hidden=true;}};
+  clearTimeout(webT);
+  webT=setTimeout(()=>{ld.textContent="";ld.append(el("span",null,"Страница долго грузится."),el("br"));
+    const b=el("button","btn","Открыть в браузере");b.type="button";
+    b.addEventListener("click",()=>{try{if(tg&&tg.openLink){tg.openLink(JF_URL(x.jf));return;}}catch(e){}window.open(JF_URL(x.jf),"_blank","noopener");});
+    ld.append(b);},15000);
+  f.src=JF_URL(x.jf);
+  openSheet("webSheet");
+}
+function openTech(libId){const x=LIBMAP[libId];if(!x)return;if(x.jf)openWeb(x);else openInfo(libId);}
 function pic(x){
   if(!x.img)return tile(x);
   const w=el("span","lc-img");const im=el("img");im.src=imgSrc(x.img,0);im.alt="";im.loading="lazy";im.decoding="async";

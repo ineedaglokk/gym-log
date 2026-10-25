@@ -235,6 +235,12 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .photos figure:only-child{flex-basis:100%}
 .photos img{width:100%;height:100%;object-fit:contain;display:block}
 .photos figcaption{position:absolute;left:8px;bottom:8px;background:rgb(0 0 0 / .55);color:#fff;font-size:11px;padding:3px 8px;border-radius:999px}
+.sheet.web .panel{height:94%}
+.sheet.web .bar h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet .body.webbody{position:relative;flex:1 1 auto;padding:0;overflow:hidden;background:#fff}
+.webbody iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent}
+.webload{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:#777;font-size:14px;padding:24px;text-align:center}
+.webload .btn{margin-top:12px}
 .libcredit{font-size:12px;color:var(--muted);margin:0}
 .libcredit a{color:inherit}
 .addbtn{flex:none;width:40px;height:40px;border-radius:11px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font-size:22px;line-height:1;cursor:pointer}
@@ -450,7 +456,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <input class="search" id="libSearch" type="search" placeholder="Поиск: тяга блока, жим, гантели…" aria-label="Поиск упражнения" autocomplete="off">
       <div class="chips" id="libChips" role="group" aria-label="Группа мышц"></div>
       <div id="libList" style="display:flex;flex-direction:column;gap:12px"></div>
-      <p class="libcredit">Нажми на карточку — откроется упражнение, «+» — добавит его в программу. Названия и страницы с техникой — <a href="https://fitpush.ru/exercises/" target="_blank" rel="noopener">fitpush.ru</a>, фото — Free Exercise DB (общественное достояние).</p>
+      <p class="libcredit">Нажми на карточку — откроется упражнение, «+» — добавит его в программу. Названия — <a href="https://fitpush.ru/exercises/" target="_blank" rel="noopener">fitpush.ru</a>, страницы с техникой — <a href="https://www.jefit.com/exercises" target="_blank" rel="noopener">jefit.com</a>, фото — Free Exercise DB (общественное достояние).</p>
       <div class="card">
         <span class="eyebrow">Нет нужного упражнения?</span>
         <div class="custom"><input id="customName" maxlength="60" placeholder="Название своего упражнения" aria-label="Название своего упражнения"><button type="button" class="btn primary" id="customAdd">Добавить</button></div>
@@ -460,6 +466,15 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 </div>
 
 <!-- exercise card sheet -->
+<!-- built-in browser: the exercise page on jefit.com, shown inside the app -->
+<div class="sheet tall web" id="webSheet" hidden role="dialog" aria-modal="true" aria-labelledby="webTitle">
+  <div class="backdrop" data-close></div>
+  <div class="panel">
+    <div class="bar"><h3 id="webTitle">Техника</h3><button type="button" class="linkbtn" id="webFp" hidden>FitPush ↗</button><button type="button" class="closebtn" data-close aria-label="Закрыть">✕</button></div>
+    <div class="body webbody"><p class="webload" id="webLoad">Загружаю страницу…</p><iframe id="webFrame" title="Страница упражнения" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="no-referrer"></iframe></div>
+  </div>
+</div>
+
 <div class="sheet" id="infoSheet" hidden role="dialog" aria-modal="true" aria-labelledby="infoTitle">
   <div class="backdrop" data-close></div>
   <div class="panel">

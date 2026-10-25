@@ -4,47 +4,46 @@
 /* ================= data: library and program ================= */
 const UNITS=["кг","кг в руке","свой вес + кг","секунды","минуты"];
 const norm1=t=>String(t||"").toLowerCase().replace(/ё/g,"е");
-/* catalog: exercise names and page links from fitpush.ru (their texts and videos stay on their site) */
-const FPD=window.FP||{g:[],e:[],x:[]};
-const GROUPS=["Ноги","Спина","Грудь","Плечи","Бицепс","Трицепс","Пресс","Икры","Комплексные","Кардио"];
-const FP_URL=slug=>"https://fitpush.ru/exercises/"+slug+"/";
+/* exercise catalog: names as on seto.fit (the user's own list), so the "i" search finds exactly these;
+   group, equipment and photo are ours (photos: Free Exercise DB, public domain) */
+const CAT=window.CAT||{g:[],e:[],x:[]};
+const GROUPS=CAT.g;
 const hash36=t=>{let h=2166136261;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(36);};
-function fpDefaults(g,ei,name){
-  const n=norm1(name),eq=FPD.e[ei]||"";
-  if(g==="Кардио"||eq==="Кардио")return {sets:1,lo:10,hi:20,step:0,unit:"минуты"};
-  if(/планка|удержание|холд|статическ/.test(n))return {sets:3,lo:20,hi:45,step:0,unit:"секунды"};
-  const small=["Плечи","Бицепс","Трицепс","Пресс","Икры"].indexOf(g)>=0;
-  const rep=g==="Икры"?[12,15]:(g==="Пресс"||g==="Бицепс"||g==="Трицепс"?[10,15]:(g==="Плечи"?[10,12]:[8,12]));
-  const body=["Свой вес","Турник/брусья","TRX","Коврик"].indexOf(eq)>=0;
+const SID=name=>"s"+hash36(name);
+function catDefaults(g,eq,u){
+  if(u===2)return {sets:1,lo:10,hi:20,step:0,unit:"минуты"};
+  if(u===1)return g==="Растяжка"?{sets:2,lo:20,hi:40,step:0,unit:"секунды"}:{sets:3,lo:20,hi:45,step:0,unit:"секунды"};
+  const small=["Плечи","Бицепс","Трицепс","Предплечья","Пресс","Икры"].indexOf(g)>=0;
+  const rep=g==="Икры"||g==="Предплечья"?[12,15]:(g==="Пресс"||g==="Бицепс"||g==="Трицепс"||g==="Ягодицы"?[10,15]:(g==="Плечи"?[10,12]:(g==="Всё тело"?[6,10]:[8,12])));
+  const body=["Свой вес","Турник/брусья","TRX","Коврик","Скамья","Резинка","Инвентарь"].indexOf(eq)>=0;
   const hand=eq==="Гантели"||eq==="Гиря";
-  const step=body?2.5:(hand?(small?1:2):(eq==="Штанга"?(small?2.5:5):(g==="Ноги"?5:2.5)));
+  const step=body?2.5:(hand?(small?1:2):(eq==="Штанга"?(small?2.5:5):(g==="Ноги"||g==="Ягодицы"?5:2.5)));
   return {sets:3,lo:rep[0],hi:rep[1],step:step,unit:body?"свой вес + кг":(hand?"кг в руке":"кг")};
 }
-const LIB=[],LIBMAP={},BYSLUG={};
-(window.GYM_LIB||[]).forEach(x=>{LIBMAP[x.id]=x;x.img=x.id;if(x.fp)BYSLUG[x.fp]=x;});
-FPD.x.forEach(r=>{
-  const slug=r[0],name=r[1],g=FPD.g[r[2]];
-  let x=BYSLUG[slug];
-  if(x){LIBMAP["f"+hash36(slug)]=x;}
-  else{x=Object.assign({id:"f"+hash36(slug)},fpDefaults(g,r[3],name));LIBMAP[x.id]=x;}
-  x.fp=slug;x.name=name;x.group=g;x.equip=FPD.e[r[3]];x.ei=r[3];x.img=r[4]||x.img||null;x.jf=r[5]||x.jf||null;LIB.push(x);
+const LIB=[],LIBMAP={};
+CAT.x.forEach(r=>{
+  const g=GROUPS[r[1]]||"",eq=CAT.e[r[2]]||"";
+  const x=Object.assign({id:SID(r[0]),name:r[0],group:g,equip:eq,ei:r[2],img:r[4]||null},catDefaults(g,eq,r[3]));
+  x.sk=norm1(x.name+" "+eq+" "+g);
+  LIBMAP[x.id]=x;LIB.push(x);
 });
-(window.GYM_LIB||[]).forEach(x=>{if(!x.fp){x.group=FPD.g[x.g]||"Пресс";x.equip=FPD.e[x.e]||x.equip;x.ei=x.e;LIB.push(x);}});
-LIB.forEach(x=>{x.sk=norm1(x.name+" "+x.equip+" "+x.group);});
+/* exercises of the earlier built-in library, so saved programs move to the new names */
+const OLD2NEW={"Barbell_Squat":"Приседания со штангой на спине","Front_Barbell_Squat":"Фронтальные приседания со штангой","Goblet_Squat":"Гоблет-приседания с гирей","Leg_Press":"Жим ногами","Dumbbell_Lunges":"Выпады с гантелями у плеч","Dumbbell_Rear_Lunge":"Обратные выпады","Split_Squat_with_Dumbbells":"Болгарские сплит-приседания с гантелями","Dumbbell_Step_Ups":"Зашагивание на скамью с гантелями и подъёмом колена","Leg_Extensions":"Разгибания ног в тренажере","Standing_Calf_Raises":"Подъём на носки стоя","Seated_Calf_Raise":"Подъём на носки в тренажёре сидя","Thigh_Adductor":"Сведение ног в тренажере","Romanian_Deadlift":"Румынская тяга","Stiff-Legged_Dumbbell_Deadlift":"Румынская тяга с гантелями","Barbell_Deadlift":"Становая тяга","Barbell_Hip_Thrust":"Ягодичный мостик со штангой с опорой на скамью","Barbell_Glute_Bridge":"Ягодичный мостик со штангой","Single_Leg_Glute_Bridge":"Ягодичный мостик с поочерёдным выпрямлением ног","Lying_Leg_Curls":"Сгибания ног в тренажере лёжа","Seated_Leg_Curl":"Сгибания ног в тренажере лёжа","Glute_Kickback":"Мах ногой назад в упоре на четвереньках","Thigh_Abductor":"Отведение бедра в тренажёре","Pull_Through":"Протяжка в блоке между ног","Barbell_Bench_Press_-_Medium_Grip":"Жим штанги лёжа","Barbell_Incline_Bench_Press_-_Medium_Grip":"Жим штанги на наклонной скамье","Dumbbell_Bench_Press":"Жим гантелей лёжа","Incline_Dumbbell_Press":"Жим гантелей на наклонной скамье","Dumbbell_Flyes":"Разводка гантелей лёжа","Cable_Crossover":"Сведение на блоке сверху вниз","Leverage_Chest_Press":"Жим от груди в тренажере","Pushups":"Отжимания","Dips_-_Chest_Version":"Отжимания на брусьях (с наклоном)","Standing_Military_Press":"Жим штанги стоя","Dumbbell_Shoulder_Press":"Жим гантелей над головой","Machine_Shoulder_Military_Press":"Жим вверх сидя в тренажёре","Side_Lateral_Raise":"Подъём гантелей в стороны","Front_Dumbbell_Raise":"Подъём гантели перед собой","Seated_Bent-Over_Rear_Delt_Raise":"Разведение гантелей на задние дельты сидя","Triceps_Pushdown_-_Rope_Attachment":"Разгибания на трицепс с канатом","Triceps_Pushdown":"Разгибания на трицепс с прямой рукоятью","EZ-Bar_Skullcrusher":"Французский жим со штангой лёжа","Standing_Dumbbell_Triceps_Extension":"Разгибание рук с гантелью из-за головы","Bench_Dips":"Отжимания от скамьи","Pullups":"Подтягивания","Wide-Grip_Lat_Pulldown":"Вертикальная тяга широким хватом","Close-Grip_Front_Lat_Pulldown":"Вертикальная тяга узким хватом","Seated_Cable_Rows":"Горизонтальная тяга блока к поясу (узкий хват)","Bent_Over_Barbell_Row":"Тяга штанги в наклоне","One-Arm_Dumbbell_Row":"Тяга гантели одной рукой в наклоне","Straight-Arm_Pulldown":"Пуловер на верхнем блоке с прямыми руками","Dumbbell_Shrug":"Шраги с гантелями","Barbell_Curl":"Подъём штанги на бицепс стоя","Dumbbell_Bicep_Curl":"Подъём гантелей на бицепс стоя","Hammer_Curls":"Молотковые сгибания","Standing_Biceps_Cable_Curl":"Подъём на бицепс одной рукой на нижнем блоке","Plank":"Планка","Side_Bridge":"Боковая планка","Dead_Bug":"Мёртвый жук","Reverse_Crunch":"Обратные скручивания","Hanging_Leg_Raise":"Подъём ног в висе","Cable_Crunch":"Скручивания на блоке","Pallof_Press":"Жим Паллофа","Farmers_Walk":"Прогулка фермера","Ab_Roller":"Выкатывание ролика для пресса"};
+const libOf=id=>LIBMAP[id]||(OLD2NEW[id]?LIBMAP[SID(OLD2NEW[id])]:null)||null;
 const DAY_S=["пн","вт","ср","чт","пт","сб","вс"];
 const MAX_EX=20;
 
 /* Vlad's starting program; ids are kept so old records still line up */
 const DEFAULT_EX=[
-  {id:"legpress",lib:"Leg_Press",name:"Жим ногами",sets:3,lo:10,hi:12,step:5,start:80,unit:"кг"},
-  {id:"incline",lib:"Incline_Dumbbell_Press",name:"Жим гантелей на наклонной",sets:3,lo:8,hi:12,step:2,start:14,unit:"кг в руке"},
-  {id:"rdl",lib:"Stiff-Legged_Dumbbell_Deadlift",name:"Румынская тяга с гантелями",sets:3,lo:10,hi:10,step:2,start:16,unit:"кг в руке"},
-  {id:"latpull",lib:"Wide-Grip_Lat_Pulldown",name:"Тяга верхнего блока",sets:3,lo:10,hi:12,step:5,start:40,unit:"кг"},
-  {id:"hipthrust",lib:"Barbell_Hip_Thrust",name:"Ягодичный мост со скамьи",sets:3,lo:10,hi:12,step:2,start:20,unit:"кг"},
-  {id:"row",lib:"Seated_Cable_Rows",name:"Тяга нижнего блока",sets:3,lo:10,hi:12,step:5,start:35,unit:"кг"},
-  {id:"lateral",lib:"Side_Lateral_Raise",name:"Махи гантелями в стороны",sets:3,lo:12,hi:15,step:1,start:5,unit:"кг в руке"},
-  {id:"biceps",lib:"Machine_Preacher_Curls",name:"Бицепс на блоке",sets:3,lo:10,hi:12,step:2.5,start:15,unit:"кг"},
-  {id:"triceps",lib:"Triceps_Pushdown_-_Rope_Attachment",name:"Трицепс на блоке",sets:3,lo:10,hi:12,step:2.5,start:20,unit:"кг"}
+  {id:"legpress",lib:SID("Жим ногами"),name:"Жим ногами",sets:3,lo:10,hi:12,step:5,start:80,unit:"кг"},
+  {id:"incline",lib:SID("Жим гантелей на наклонной скамье"),name:"Жим гантелей на наклонной",sets:3,lo:8,hi:12,step:2,start:14,unit:"кг в руке"},
+  {id:"rdl",lib:SID("Румынская тяга с гантелями"),name:"Румынская тяга с гантелями",sets:3,lo:10,hi:10,step:2,start:16,unit:"кг в руке"},
+  {id:"latpull",lib:SID("Вертикальная тяга широким хватом"),name:"Тяга верхнего блока",sets:3,lo:10,hi:12,step:5,start:40,unit:"кг"},
+  {id:"hipthrust",lib:SID("Ягодичный мостик со штангой с опорой на скамью"),name:"Ягодичный мост со скамьи",sets:3,lo:10,hi:12,step:2,start:20,unit:"кг"},
+  {id:"row",lib:SID("Горизонтальная тяга блока к поясу (узкий хват)"),name:"Тяга нижнего блока",sets:3,lo:10,hi:12,step:5,start:35,unit:"кг"},
+  {id:"lateral",lib:SID("Подъём гантелей в стороны"),name:"Махи гантелями в стороны",sets:3,lo:12,hi:15,step:1,start:5,unit:"кг в руке"},
+  {id:"biceps",lib:null,name:"Бицепс на блоке",sets:3,lo:10,hi:12,step:2.5,start:15,unit:"кг"},
+  {id:"triceps",lib:SID("Разгибания на трицепс с канатом"),name:"Трицепс на блоке",sets:3,lo:10,hi:12,step:2.5,start:20,unit:"кг"}
 ];
 const DEFAULT_LIB={};DEFAULT_EX.forEach(e=>{DEFAULT_LIB[e.id]=e.lib;});
 const MAX_W=7,MAX_TOTAL=40;
@@ -58,7 +57,7 @@ const safeId=t=>String(t||"").replace(/[^A-Za-z0-9_]/g,"").slice(0,32);
 const rid=p=>p+Date.now().toString(36).slice(-4)+Math.random().toString(36).slice(2,5);
 function cleanEx(e){
   const id=safeId(e.id)||rid("x");
-  const lx=LIBMAP[e.lib];
+  const lx=libOf(e.lib);
   const lib=lx?lx.id:(DEFAULT_LIB[id]||null);
   const lo=Math.round(clampNum(e.lo,1,600,10)),hi=Math.max(lo,Math.round(clampNum(e.hi,1,600,12)));
   return {id:id,lib:lib,name:String(e.name||"").trim().slice(0,60)||"Упражнение",
@@ -107,17 +106,16 @@ function fromLib(x,W){
 function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.editKey=null;}
 
 /* ready-made splits for friends */
-const T=(lib,o)=>Object.assign({lib:lib},o||{});
 const TEMPLATES=[
   {key:"full",name:"Фулбоди, 3 дня",note:"Одна тренировка на всё тело: пн, ср, пт",
    make:()=>defaultProg().workouts},
   {key:"ul",name:"Верх / низ, 4 дня",note:"Верх: пн, чт · Низ: вт, пт",
-   w:[["Верх",[0,3],["Barbell_Bench_Press_-_Medium_Grip","Wide-Grip_Lat_Pulldown","Dumbbell_Shoulder_Press","Seated_Cable_Rows","Side_Lateral_Raise","Dumbbell_Bicep_Curl","Triceps_Pushdown_-_Rope_Attachment"]],
-      ["Низ",[1,4],["Barbell_Squat","Romanian_Deadlift","Leg_Press","Lying_Leg_Curls","Barbell_Hip_Thrust","Standing_Calf_Raises","Plank"]]]},
+   w:[["Верх",[0,3],["Жим штанги лёжа","Вертикальная тяга широким хватом","Жим гантелей над головой","Горизонтальная тяга блока к поясу (узкий хват)","Подъём гантелей в стороны","Подъём гантелей на бицепс стоя","Разгибания на трицепс с канатом"]],
+      ["Низ",[1,4],["Приседания со штангой на спине","Румынская тяга","Жим ногами","Сгибания ног в тренажере лёжа","Ягодичный мостик со штангой с опорой на скамью","Подъём на носки стоя","Планка"]]]},
   {key:"ppl",name:"Толкай / тяни / ноги, 3 дня",note:"Толкай: пн · Тяни: ср · Ноги: пт",
-   w:[["Толкай",[0],["Barbell_Bench_Press_-_Medium_Grip","Incline_Dumbbell_Press","Dumbbell_Shoulder_Press","Side_Lateral_Raise","Triceps_Pushdown_-_Rope_Attachment","EZ-Bar_Skullcrusher"]],
-      ["Тяни",[2],["Pullups","Bent_Over_Barbell_Row","Close-Grip_Front_Lat_Pulldown","Face_Pull","Barbell_Curl","Hammer_Curls"]],
-      ["Ноги",[4],["Barbell_Squat","Romanian_Deadlift","Leg_Press","Seated_Leg_Curl","Seated_Calf_Raise","Hanging_Leg_Raise"]]]}
+   w:[["Толкай",[0],["Жим штанги лёжа","Жим гантелей на наклонной скамье","Жим гантелей над головой","Подъём гантелей в стороны","Разгибания на трицепс с канатом","Французский жим со штангой лёжа"]],
+      ["Тяни",[2],["Подтягивания","Тяга штанги в наклоне","Вертикальная тяга узким хватом","Разводка на заднюю дельту на блоке","Подъём штанги на бицепс стоя","Молотковые сгибания"]],
+      ["Ноги",[4],["Приседания со штангой на спине","Румынская тяга","Жим ногами","Сгибания ног в тренажере лёжа","Подъём на носки в тренажёре сидя","Подъём ног в висе"]]]}
 ];
 function templateProg(t){
   if(t.make)return {workouts:t.make(),saved:true};
@@ -126,7 +124,7 @@ function templateProg(t){
     const W={id:"w"+(i+1),name:a[0],days:a[1].slice(),ex:[]};
     p.workouts.push(W);
     const prev=PROG;PROG=p;
-    a[2].forEach(lid=>{const x=LIBMAP[lid];if(x&&!W.ex.some(e=>e.lib===lid))W.ex.push(fromLib(x,W));});
+    a[2].forEach(nm=>{const x=LIBMAP[SID(nm)];if(x&&!W.ex.some(e=>e.lib===x.id))W.ex.push(fromLib(x,W));});
     PROG=prev;
   });
   return p;
@@ -592,7 +590,6 @@ function openSheet(id){
 function closeSheet(){
   const id=stack.pop();if(!id)return;
   document.getElementById(id).hidden=true;
-  if(id==="infoSheet")$("#infoBody").textContent="";
   if(id==="exSheet"){S.editKey=null;$("#exEditBody").textContent="";}
   if(id==="webSheet"){clearTimeout(webT);$("#webFrame").src="about:blank";}
   if(!stack.length){document.body.style.overflow="";try{if(tg&&tg.BackButton)tg.BackButton.hide();}catch(e){}}
@@ -626,11 +623,6 @@ function tile(x,cls){
   const u=document.createElementNS(SVGNS,"use");u.setAttribute("href","#eq"+(x.ei!=null&&x.ei>=0?x.ei:2));sv.append(u);
   t.append(sv);return t;
 }
-function openFp(x){
-  const u=FP_URL(x.fp);
-  try{if(tg&&tg.openLink){tg.openLink(u);return;}}catch(e){}
-  window.open(u,"_blank","noopener");
-}
 /* built-in browser: seto.fit search for the exercise, shown inside the app.
    Nothing is collected from their site: we only open their own search page with the exercise name. */
 const SETO_URL=name=>"https://seto.fit/ru/exercises/?q="+encodeURIComponent(String(name||"").replace(/\((ж|м)\)/gi,"").replace(/["«»]/g,"").replace(/\s+/g," ").trim());
@@ -638,7 +630,6 @@ let webT=null;
 function openWeb(name,x){
   const f=$("#webFrame"),ld=$("#webLoad"),url=SETO_URL(name);
   $("#webTitle").textContent=name;
-  const fpb=$("#webFp");fpb.hidden=!(x&&x.fp);fpb.onclick=()=>{if(x)openFp(x);};
   ld.textContent="Загружаю seto…";ld.hidden=false;
   f.onload=()=>{if(f.src!=="about:blank"){clearTimeout(webT);ld.hidden=true;}};
   clearTimeout(webT);
@@ -649,7 +640,8 @@ function openWeb(name,x){
   f.src=url;
   openSheet("webSheet");
 }
-function openTech(libId,name){const x=LIBMAP[libId]||null;openWeb(name||(x&&x.name)||"",x);}
+/* search by the catalog name (it matches seto); exercises typed in by hand are searched by their own name */
+function openTech(libId,name){const x=LIBMAP[libId]||null;openWeb((x&&x.name)||name||"",x);}
 /* card picture: the exercise photo, or an equipment icon on the muscle-group colour */
 function pic(x,cls){
   if(!x.img)return tile(x,cls+" ico");
@@ -698,40 +690,6 @@ $("#customAdd").addEventListener("click",()=>{
   $("#customName").value="";
   saveProg();closeSheet();S.editKey=W.id+"/"+id;renderProgEditor();openSheet("exSheet");toast("Добавлено — настрой подходы и вес");
 });
-
-/* exercise window inside the app: photos, short facts, own notes where we have them, link to the FitPush page */
-function openInfo(libId){
-  const x=LIBMAP[libId];if(!x)return;
-  const b=$("#infoBody");b.textContent="";
-  $("#infoBarTitle").textContent=x.group||"Техника";
-  if(x.img){
-    const ph=el("div","photos");
-    [0,1].forEach(k=>{const f=el("figure");const im=el("img");im.src=imgSrc(x.img,k);im.alt=x.name+(k?": конец движения":": начало движения");im.decoding="async";
-      im.addEventListener("error",()=>{f.remove();},{once:true});
-      f.append(im,el("figcaption",null,k?"Конец":"Начало"));ph.append(f);});
-    b.append(ph);
-  }
-  const h=el("h2",null,x.name);h.id="infoTitle";b.append(h);
-  const facts=el("div","facts");
-  [x.equip,x.level,x.sets+" × "+(x.lo===x.hi?x.hi:x.lo+"–"+x.hi)+(isTime(x)?tSuf(x):"")].filter(Boolean).forEach(t=>facts.append(el("span","fact",t)));
-  b.append(facts);
-  if(x.fp){
-    const fp=el("button","btn wide primary","Техника и видео на FitPush ↗");fp.type="button";
-    fp.addEventListener("click",()=>openFp(x));b.append(fp);
-  }
-  if(!inProg(x.id)){
-    const add=el("button","btn wide"+(x.fp?"":" primary"),"+ Добавить в «"+PW().name+"»");add.type="button";
-    add.addEventListener("click",()=>{if(addFromLib(x)){add.disabled=true;add.textContent="✓ Добавлено";if(stack.indexOf("libSheet")>=0)renderLibList();}});
-    b.append(add);
-  }
-  if(x.muscles){b.append(el("h4",null,"Мышцы"),el("p",null,x.muscles));}
-  if(x.how&&x.how.length){b.append(el("h4",null,"Как делать"));const ol=el("ol");x.how.forEach(t=>ol.append(el("li",null,t)));b.append(ol);}
-  if(x.mistakes&&x.mistakes.length){b.append(el("h4",null,"Частые ошибки"));const ul=el("ul");x.mistakes.forEach(t=>ul.append(el("li",null,t)));b.append(ul);}
-  if(x.tip)b.append(el("div","tipbox",x.tip));
-  b.append(el("p","credit",(x.img?"Фото: Free Exercise DB, общественное достояние. ":"")+(x.fp?"Техника и видео — на fitpush.ru.":"")));
-  openSheet("infoSheet");
-  $("#infoSheet .body").scrollTop=0;
-}
 
 /* ================= YEAR: calendar + progress ================= */
 function renderStats(){

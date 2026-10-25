@@ -228,13 +228,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .lc,.tile{--tbg:hsl(var(--h) 38% 93%);--tfg:hsl(var(--h) 45% 36%)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) :is(.lc,.tile){--tbg:hsl(var(--h) 18% 17%);--tfg:hsl(var(--h) 55% 72%)}}
 :root[data-theme="dark"] :is(.lc,.tile){--tbg:hsl(var(--h) 18% 17%);--tfg:hsl(var(--h) 55% 72%)}
-.g0{--h:150}.g1{--h:212}.g2{--h:345}.g3{--h:28}.g4{--h:262}.g5{--h:292}.g6{--h:46}.g7{--h:182}.g8{--h:95}.g9{--h:5}
-.photos{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:0 max(16px,env(safe-area-inset-left,0px))}
-.photos::-webkit-scrollbar{display:none}
-.photos figure{flex:0 0 88%;margin:0;scroll-snap-align:center;position:relative;border-radius:14px;overflow:hidden;background:#fff;aspect-ratio:3/2}
-.photos figure:only-child{flex-basis:100%}
-.photos img{width:100%;height:100%;object-fit:contain;display:block}
-.photos figcaption{position:absolute;left:8px;bottom:8px;background:rgb(0 0 0 / .55);color:#fff;font-size:11px;padding:3px 8px;border-radius:999px}
+.g0{--h:150}.g1{--h:320}.g2{--h:212}.g3{--h:345}.g4{--h:28}.g5{--h:262}.g6{--h:292}.g7{--h:232}.g8{--h:46}.g9{--h:182}.g10{--h:95}.g11{--h:5}.g12{--h:168}
 .sheet.web .panel{height:94%}
 .sheet.web .bar h3{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sheet .body.webbody{position:relative;flex:1 1 auto;padding:0;overflow:hidden;background:#fff}
@@ -308,15 +302,6 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 #progBody{display:flex;flex-direction:column;gap:12px}
 .closebtn{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:var(--sunk);font-size:18px;line-height:1;cursor:pointer;color:var(--fg)}
 
-/* exercise card */
-.facts{display:flex;gap:6px;flex-wrap:wrap}
-.fact{font-size:12px;padding:4px 9px;border-radius:999px;background:var(--sunk);color:var(--fg)}
-.info h2{font-size:24px;text-transform:none;letter-spacing:0}
-.info h4{margin:4px 0 0;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500}
-.info ol,.info ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
-.info p{margin:0}
-.tipbox{background:var(--accent-soft);border-radius:12px;padding:10px 12px;font-size:14px}
-.credit{font-size:11px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -463,7 +448,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
       <input class="search" id="libSearch" type="search" placeholder="Поиск: тяга блока, жим, гантели…" aria-label="Поиск упражнения" autocomplete="off">
       <div class="chips" id="libChips" role="group" aria-label="Группа мышц"></div>
       <div id="libList" style="display:flex;flex-direction:column;gap:12px"></div>
-      <p class="libcredit">Нажми на карточку — откроется упражнение, «+» — добавит его в программу. Названия — <a href="https://fitpush.ru/exercises/" target="_blank" rel="noopener">fitpush.ru</a>, техника и видео — <a href="https://seto.fit/ru/exercises/" target="_blank" rel="noopener">seto.fit</a>, фото — Free Exercise DB (общественное достояние).</p>
+      <p class="libcredit">Нажми на карточку — откроется упражнение, «+» — добавит его в программу. Названия как на <a href="https://seto.fit/ru/exercises/" target="_blank" rel="noopener">seto.fit</a> — там же техника и видео. Фото на карточках — Free Exercise DB (общественное достояние).</p>
       <div class="card">
         <span class="eyebrow">Нет нужного упражнения?</span>
         <div class="custom"><input id="customName" maxlength="60" placeholder="Название своего упражнения" aria-label="Название своего упражнения"><button type="button" class="btn primary" id="customAdd">Добавить</button></div>
@@ -477,7 +462,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 <div class="sheet tall web" id="webSheet" hidden role="dialog" aria-modal="true" aria-labelledby="webTitle">
   <div class="backdrop" data-close></div>
   <div class="panel">
-    <div class="bar"><h3 id="webTitle">Техника</h3><button type="button" class="linkbtn" id="webFp" hidden>FitPush ↗</button><button type="button" class="closebtn" data-close aria-label="Закрыть">✕</button></div>
+    <div class="bar"><h3 id="webTitle">Техника</h3><button type="button" class="closebtn" data-close aria-label="Закрыть">✕</button></div>
     <div class="body webbody"><p class="webload" id="webLoad">Загружаю страницу…</p><iframe id="webFrame" title="Страница упражнения" allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="no-referrer"></iframe></div>
   </div>
 </div>
@@ -491,17 +476,9 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
   </div>
 </div>
 
-<div class="sheet" id="infoSheet" hidden role="dialog" aria-modal="true" aria-labelledby="infoTitle">
-  <div class="backdrop" data-close></div>
-  <div class="panel">
-    <div class="bar"><h3 id="infoBarTitle">Техника</h3><button type="button" class="closebtn" data-close aria-label="Закрыть">✕</button></div>
-    <div class="body info" id="infoBody"></div>
-  </div>
-</div>
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
-<script src="lib.js"></script>
-<script src="fp.js"></script>
+<script src="cat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

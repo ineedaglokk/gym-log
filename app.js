@@ -303,7 +303,7 @@ function renderLog(){
 
     const head=el("div","exhead");
     head.append(el("h3",null,e.name));
-    if(e.lib&&LIBMAP[e.lib]){const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openTech(e.lib));head.append(ib);}
+    {const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openTech(e.lib,e.name));head.append(ib);}
     li.append(head);
     const goal=(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"");
     li.append(el("p","meta",prev?"прошлый раз "+setsText(prev,e):"цель "+goal+(isTime(e)?"":" повт.")));
@@ -487,7 +487,7 @@ function renderProgEditor(){
         b.addEventListener("click",()=>{const t=EX[i];EX[i]=EX[j];EX[j]=t;haptic("tap");renderProgEditor();saveProg();});return b;};
       const del=el("button","btn","Убрать");del.type="button";
       del.addEventListener("click",()=>{EX.splice(i,1);delete S.openEx[key];haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
-      if(e.lib&&LIBMAP[e.lib]){const tb=el("button","btn","Техника ↗");tb.type="button";tb.addEventListener("click",()=>openTech(e.lib));tools.append(tb);}
+      {const tb=el("button","btn","Техника");tb.type="button";tb.addEventListener("click",()=>openTech(e.lib,e.name));tools.append(tb);}
       tools.append(mv(-1,"↑","Выше"),mv(1,"↓","Ниже"),el("span","grow"),del);
       card.append(tools);
     }
@@ -624,24 +624,25 @@ function openFp(x){
   try{if(tg&&tg.openLink){tg.openLink(u);return;}}catch(e){}
   window.open(u,"_blank","noopener");
 }
-/* built-in browser: the JEFIT page of the exercise, inside the app */
-const JF_URL=jf=>"https://www.jefit.com/exercises/"+jf;
+/* built-in browser: seto.fit search for the exercise, shown inside the app.
+   Nothing is collected from their site: we only open their own search page with the exercise name. */
+const SETO_URL=name=>"https://seto.fit/ru/exercises/?q="+encodeURIComponent(String(name||"").replace(/\((ж|м)\)/gi,"").replace(/["«»]/g,"").replace(/\s+/g," ").trim());
 let webT=null;
-function openWeb(x){
-  const f=$("#webFrame"),ld=$("#webLoad");
-  $("#webTitle").textContent=x.name;
-  const fpb=$("#webFp");fpb.hidden=!x.fp;fpb.onclick=()=>openFp(x);
-  ld.textContent="Загружаю страницу…";ld.hidden=false;
+function openWeb(name,x){
+  const f=$("#webFrame"),ld=$("#webLoad"),url=SETO_URL(name);
+  $("#webTitle").textContent=name;
+  const fpb=$("#webFp");fpb.hidden=!(x&&x.fp);fpb.onclick=()=>{if(x)openFp(x);};
+  ld.textContent="Загружаю seto…";ld.hidden=false;
   f.onload=()=>{if(f.src!=="about:blank"){clearTimeout(webT);ld.hidden=true;}};
   clearTimeout(webT);
   webT=setTimeout(()=>{ld.textContent="";ld.append(el("span",null,"Страница долго грузится."),el("br"));
     const b=el("button","btn","Открыть в браузере");b.type="button";
-    b.addEventListener("click",()=>{try{if(tg&&tg.openLink){tg.openLink(JF_URL(x.jf));return;}}catch(e){}window.open(JF_URL(x.jf),"_blank","noopener");});
+    b.addEventListener("click",()=>{try{if(tg&&tg.openLink){tg.openLink(url);return;}}catch(e){}window.open(url,"_blank","noopener");});
     ld.append(b);},15000);
-  f.src=JF_URL(x.jf);
+  f.src=url;
   openSheet("webSheet");
 }
-function openTech(libId){const x=LIBMAP[libId];if(!x)return;if(x.jf)openWeb(x);else openInfo(libId);}
+function openTech(libId,name){const x=LIBMAP[libId]||null;openWeb(name||(x&&x.name)||"",x);}
 function pic(x){
   if(!x.img)return tile(x);
   const w=el("span","lc-img");const im=el("img");im.src=imgSrc(x.img,0);im.alt="";im.loading="lazy";im.decoding="async";

@@ -2,10 +2,35 @@
 "use strict";
 
 /* ================= data: library and program ================= */
-const LIB=(window.GYM_LIB||[]);
-const LIBMAP={};LIB.forEach(x=>{LIBMAP[x.id]=x;});
-const GROUPS=["Ноги","Ягодицы и задняя поверхность","Грудь","Спина","Плечи","Руки","Кор"];
-const UNITS=["кг","кг в руке","свой вес + кг","секунды"];
+const UNITS=["кг","кг в руке","свой вес + кг","секунды","минуты"];
+const norm1=t=>String(t||"").toLowerCase().replace(/ё/g,"е");
+/* catalog: exercise names and page links from fitpush.ru (their texts and videos stay on their site) */
+const FPD=window.FP||{g:[],e:[],x:[]};
+const GROUPS=["Ноги","Спина","Грудь","Плечи","Бицепс","Трицепс","Пресс","Икры","Комплексные","Кардио"];
+const FP_URL=slug=>"https://fitpush.ru/exercises/"+slug+"/";
+const hash36=t=>{let h=2166136261;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(36);};
+function fpDefaults(g,ei,name){
+  const n=norm1(name),eq=FPD.e[ei]||"";
+  if(g==="Кардио"||eq==="Кардио")return {sets:1,lo:10,hi:20,step:0,unit:"минуты"};
+  if(/планка|удержание|холд|статическ/.test(n))return {sets:3,lo:20,hi:45,step:0,unit:"секунды"};
+  const small=["Плечи","Бицепс","Трицепс","Пресс","Икры"].indexOf(g)>=0;
+  const rep=g==="Икры"?[12,15]:(g==="Пресс"||g==="Бицепс"||g==="Трицепс"?[10,15]:(g==="Плечи"?[10,12]:[8,12]));
+  const body=["Свой вес","Турник/брусья","TRX","Коврик"].indexOf(eq)>=0;
+  const hand=eq==="Гантели"||eq==="Гиря";
+  const step=body?2.5:(hand?(small?1:2):(eq==="Штанга"?(small?2.5:5):(g==="Ноги"?5:2.5)));
+  return {sets:3,lo:rep[0],hi:rep[1],step:step,unit:body?"свой вес + кг":(hand?"кг в руке":"кг")};
+}
+const LIB=[],LIBMAP={},BYSLUG={};
+(window.GYM_LIB||[]).forEach(x=>{LIBMAP[x.id]=x;if(x.fp)BYSLUG[x.fp]=x;});
+FPD.x.forEach(r=>{
+  const slug=r[0],name=r[1],g=FPD.g[r[2]];
+  let x=BYSLUG[slug];
+  if(x){LIBMAP["f"+hash36(slug)]=x;}
+  else{x=Object.assign({id:"f"+hash36(slug)},fpDefaults(g,r[3],name));LIBMAP[x.id]=x;}
+  x.fp=slug;x.name=name;x.group=g;x.equip=FPD.e[r[3]];x.ei=r[3];LIB.push(x);
+});
+(window.GYM_LIB||[]).forEach(x=>{if(!x.fp){x.group=FPD.g[x.g]||"Пресс";x.equip=FPD.e[x.e]||x.equip;x.ei=x.e;LIB.push(x);}});
+LIB.forEach(x=>{x.sk=norm1(x.name+" "+x.equip+" "+x.group);});
 const DAY_S=["пн","вт","ср","чт","пт","сб","вс"];
 const MAX_EX=20;
 
@@ -33,7 +58,8 @@ const safeId=t=>String(t||"").replace(/[^A-Za-z0-9_]/g,"").slice(0,32);
 const rid=p=>p+Date.now().toString(36).slice(-4)+Math.random().toString(36).slice(2,5);
 function cleanEx(e){
   const id=safeId(e.id)||rid("x");
-  const lib=LIBMAP[e.lib]?e.lib:(DEFAULT_LIB[id]||null);
+  const lx=LIBMAP[e.lib];
+  const lib=lx?lx.id:(DEFAULT_LIB[id]||null);
   const lo=Math.round(clampNum(e.lo,1,600,10)),hi=Math.max(lo,Math.round(clampNum(e.hi,1,600,12)));
   return {id:id,lib:lib,name:String(e.name||"").trim().slice(0,60)||"Упражнение",
     sets:Math.round(clampNum(e.sets,1,6,3)),lo:lo,hi:hi,step:clampNum(e.step,0,100,2.5),
@@ -73,7 +99,7 @@ function cleanProg(p){
 /* same exercise in two workouts shares one id, so its history is shared too */
 function fromLib(x,W){
   const other=allEx().find(e=>e.lib===x.id);
-  let id=other?other.id:safeId(x.id);
+  let id=other?other.id:(safeId(x.id)||rid("x"));
   if(!other)while(allEx().some(e=>e.id===id))id+="2";
   return {id:id,lib:x.id,name:x.name,sets:x.sets||3,lo:x.lo||10,hi:Math.max(x.lo||10,x.hi||12),
     step:x.step!=null?x.step:2.5,start:other?other.start:0,unit:UNITS.indexOf(x.unit)>=0?x.unit:"кг"};
@@ -130,8 +156,8 @@ const workouts=n=>n+" "+plural(n,"тренировка","тренировки","
 const seq=n=>Array.from({length:n},(_,i)=>i);
 const hasSets=x=>x&&Array.isArray(x.r)&&x.r.some(v=>v!=null);
 const isWorkout=doc=>doc&&doc.ex&&Object.values(doc.ex).some(hasSets);
-const norm1=t=>String(t||"").toLowerCase().replace(/ё/g,"е");
-const isTime=e=>e.unit==="секунды";
+const isTime=e=>e.unit==="секунды"||e.unit==="минуты";
+const tSuf=e=>e.unit==="минуты"?" мин":" с";
 const isBody=e=>e.unit==="свой вес + кг";
 const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
@@ -214,12 +240,13 @@ function setsText(x,e){
   return x.r.map((r,i)=>{
     if(r==null)return null;
     if(u==="секунды")return r+" с";
+    if(u==="минуты")return r+" мин";
     const w=x.w[i];
     if(u==="свой вес + кг")return w?("+"+fmt(w)+"×"+r):String(r);
     return (w==null?"—":fmt(w))+"×"+r;
   }).filter(Boolean).join(" · ");
 }
-const targetText=e=>e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?" с":"")+" · "+e.unit;
+const targetText=e=>e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"")+" · "+e.unit;
 
 /* ================= LOG ================= */
 const wdOf=date=>(parse(date).getDay()+6)%7;
@@ -276,16 +303,16 @@ function renderLog(){
 
     const head=el("div","exhead");
     head.append(el("h3",null,e.name));
-    if(e.lib&&LIBMAP[e.lib]){const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openInfo(e.lib));head.append(ib);}
+    if(e.lib&&LIBMAP[e.lib]){const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openTech(e.lib));head.append(ib);}
     li.append(head);
-    const goal=(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?" с":"");
+    const goal=(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"");
     li.append(el("p","meta",prev?"прошлый раз "+setsText(prev,e):"цель "+goal+(isTime(e)?"":" повт.")));
 
     const grid=el("div","sets");grid.style.gridTemplateColumns="auto repeat("+e.sets+",minmax(0,1fr))";
-    grid.append(el("span","lab",isTime(e)?"сек":"повт."));
+    grid.append(el("span","lab",isTime(e)?(e.unit==="минуты"?"мин":"сек"):"повт."));
     for(let k=0;k<e.sets;k++){
       const r=el("input","num");r.id="r-"+e.id+"-"+k;r.inputMode="numeric";r.autocomplete="off";
-      r.placeholder=String(e.hi);r.setAttribute("aria-label",e.name+": "+(isTime(e)?"секунды":"повторы")+", подход "+(k+1));
+      r.placeholder=String(e.hi);r.setAttribute("aria-label",e.name+": "+(isTime(e)?e.unit:"повторы")+", подход "+(k+1));
       const v=cur?cur.r[k]:null;r.value=v==null?"":String(v);
       r.classList.toggle("hit",v!=null&&v>=e.hi);
       r.addEventListener("input",()=>{const x=intv(r.value);const was=r.classList.contains("hit");r.classList.toggle("hit",x!=null&&x>=e.hi);if(!was&&x!=null&&x>=e.hi)haptic("hit");});
@@ -413,7 +440,8 @@ function pnum(val,mode,onset,label){
   return i;
 }
 function thumb(e){
-  if(e.lib&&LIBMAP[e.lib]){const im=el("img","pc-thumb");im.src=imgSrc(e.lib,0);im.alt="";im.loading="lazy";return im;}
+  const x=e.lib&&LIBMAP[e.lib];
+  if(x){const t=tile(x,"pc-thumb");return t;}
   return el("span","pc-thumb blank",(e.name||"?").slice(0,1).toUpperCase());
 }
 function renderProgEditor(){
@@ -429,7 +457,7 @@ function renderProgEditor(){
     const key=W.id+"/"+e.id,open=!!S.openEx[key];
     const row=el("button","pc-open");row.type="button";row.setAttribute("aria-expanded",String(open));
     const main=el("div","pc-main");
-    main.append(el("h3",null,e.name),el("p","target",e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?" с":"")));
+    main.append(el("h3",null,e.name),el("p","target",e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"")));
     row.append(thumb(e),main,el("span","chev",open?"⌃":"⌄"));
     row.addEventListener("click",()=>{S.openEx[key]=!open;renderProgEditor();});
     card.append(row);
@@ -444,7 +472,7 @@ function renderProgEditor(){
       const lo=pnum(e.lo,"numeric",v=>{e.lo=Math.round(clampNum(v,1,600,e.lo));if(e.hi<e.lo)e.hi=e.lo;},"От");
       const hi=pnum(e.hi,"numeric",v=>{e.hi=Math.max(e.lo,Math.round(clampNum(v,1,600,e.hi)));},"До");
       pair.append(lo,el("b",null,"–"),hi);
-      const pl=el("div","pf");pl.append(el("span",null,isTime(e)?"Секунды":"Повторы"),pair);f.append(pl);
+      const pl=el("div","pf");pl.append(el("span",null,isTime(e)?(e.unit==="минуты"?"Минуты":"Секунды"):"Повторы"),pair);f.append(pl);
       const sel=el("select");UNITS.forEach(u=>{const o=el("option",null,u);o.value=u;sel.append(o);});
       sel.value=e.unit;sel.addEventListener("change",()=>{e.unit=sel.value;renderProgEditor();saveProg();});
       f.append(pfield("Тип",sel));
@@ -458,7 +486,7 @@ function renderProgEditor(){
         b.addEventListener("click",()=>{const t=EX[i];EX[i]=EX[j];EX[j]=t;haptic("tap");renderProgEditor();saveProg();});return b;};
       const del=el("button","btn","Убрать");del.type="button";
       del.addEventListener("click",()=>{EX.splice(i,1);delete S.openEx[key];haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
-      if(e.lib&&LIBMAP[e.lib]){const tb=el("button","btn","Техника");tb.type="button";tb.addEventListener("click",()=>openInfo(e.lib));tools.append(tb);}
+      if(e.lib&&LIBMAP[e.lib]){const tb=el("button","btn","Техника ↗");tb.type="button";tb.addEventListener("click",()=>openTech(e.lib));tools.append(tb);}
       tools.append(mv(-1,"↑","Выше"),mv(1,"↓","Ниже"),el("span","grow"),del);
       card.append(tools);
     }
@@ -575,30 +603,48 @@ function addFromLib(x){
 function renderLibChips(){
   const c=$("#libChips");c.textContent="";
   ["Все"].concat(GROUPS).forEach(g=>{
-    const b=el("button",null,g==="Ягодицы и задняя поверхность"?"Ягодицы и бицепс бедра":g);b.type="button";
+    const b=el("button",null,g);b.type="button";
     b.setAttribute("aria-pressed",String(S.libGroup===g));
     b.addEventListener("click",()=>{S.libGroup=g;haptic("tap");renderLibChips();renderLibList();});
     c.append(b);
   });
 }
+/* picture for a card: muscle group sets the colour, equipment sets the icon */
+const SVGNS="http://www.w3.org/2000/svg";
+function tile(x,cls){
+  const t=el("span","tile "+(cls||"")+" g"+Math.max(0,GROUPS.indexOf(x.group)));
+  const sv=document.createElementNS(SVGNS,"svg");sv.setAttribute("viewBox","0 0 48 48");sv.setAttribute("aria-hidden","true");
+  const u=document.createElementNS(SVGNS,"use");u.setAttribute("href","#eq"+(x.ei!=null&&x.ei>=0?x.ei:2));sv.append(u);
+  t.append(sv);return t;
+}
+function openFp(x){
+  const u=FP_URL(x.fp);
+  try{if(tg&&tg.openLink){tg.openLink(u);return;}}catch(e){}
+  window.open(u,"_blank","noopener");
+}
+function openTech(libId){const x=LIBMAP[libId];if(!x)return;if(x.fp)openFp(x);else openInfo(x.id);}
+function libCard(x){
+  const c=el("div","lc g"+Math.max(0,GROUPS.indexOf(x.group)));
+  const op=el("button","lc-open");op.type="button";
+  op.setAttribute("aria-label",(x.fp?"Техника на FitPush: ":"Техника: ")+x.name);
+  op.append(tile(x),el("span","lc-name",x.name),el("span","lc-eq",x.equip||""));
+  op.addEventListener("click",()=>openTech(x.id));
+  const on=inProg(x.id);
+  const add=el("button","lc-add"+(on?" done":""),on?"✓":"+");add.type="button";
+  add.setAttribute("aria-label",on?"Уже в программе":"Добавить в программу: "+x.name);
+  add.addEventListener("click",()=>{if(addFromLib(x)){add.className="lc-add done";add.textContent="✓";add.setAttribute("aria-label","Уже в программе");}});
+  c.append(op,add);return c;
+}
 function renderLibList(){
-  const ul=$("#libList");ul.textContent="";
-  const q=norm1(S.libQuery).trim();
-  const hits=LIB.filter(x=>(S.libGroup==="Все"||x.group===S.libGroup)&&(!q||norm1(x.name+" "+x.muscles+" "+x.equip+" "+x.group).indexOf(q)>=0));
-  if(!hits.length){ul.append(el("li","target","Ничего не нашлось. Можно добавить своё упражнение ниже."));return;}
-  let lastG=null;
-  GROUPS.forEach(g=>hits.filter(x=>x.group===g).forEach(x=>{
-    if(S.libGroup==="Все"&&g!==lastG){lastG=g;ul.append(el("li","libgroup",g));}
-    const li=el("li");
-    const op=el("button","open");op.type="button";op.setAttribute("aria-label","Открыть: "+x.name);
-    const im=el("img");im.src=imgSrc(x.id,0);im.alt="";im.loading="lazy";
-    const tx=el("span");tx.append(el("b",null,x.name),el("small",null,x.equip+" · "+x.muscles));
-    op.append(im,tx);op.addEventListener("click",()=>openInfo(x.id));
-    const add=el("button","addbtn"+(inProg(x.id)?" done":""),inProg(x.id)?"✓":"+");add.type="button";
-    add.setAttribute("aria-label",inProg(x.id)?"Уже в программе":"Добавить в программу: "+x.name);
-    add.addEventListener("click",()=>{if(addFromLib(x)){add.className="addbtn done";add.textContent="✓";add.setAttribute("aria-label","Уже в программе");}});
-    li.append(op,add);ul.append(li);
-  }));
+  const box=$("#libList");box.textContent="";
+  const words=norm1(S.libQuery).trim().split(/\s+/).filter(Boolean);
+  const hits=LIB.filter(x=>(S.libGroup==="Все"||x.group===S.libGroup)&&words.every(w=>x.sk.indexOf(w)>=0));
+  if(!hits.length){box.append(el("p","target","Ничего не нашлось. Можно добавить своё упражнение ниже."));return;}
+  GROUPS.forEach(g=>{
+    const hs=hits.filter(x=>x.group===g);if(!hs.length)return;
+    if(S.libGroup==="Все"||words.length)box.append(el("h4","libgroup",g+" · "+hs.length));
+    const grid=el("div","libgrid");hs.forEach(x=>grid.append(libCard(x)));box.append(grid);
+  });
 }
 function openLib(){
   S.libQuery="";$("#libSearch").value="";
@@ -663,7 +709,7 @@ function openInfo(libId){
   }
   const h=el("h2",null,x.name);h.id="infoTitle";b.append(h);
   const facts=el("div","facts");
-  [x.equip,x.level,x.sets+" × "+(x.lo===x.hi?x.hi:x.lo+"–"+x.hi)+(x.unit==="секунды"?" с":"")].forEach(t=>facts.append(el("span","fact",t)));
+  [x.equip,x.level,x.sets+" × "+(x.lo===x.hi?x.hi:x.lo+"–"+x.hi)+(isTime(x)?tSuf(x):"")].forEach(t=>facts.append(el("span","fact",t)));
   b.append(facts);
   b.append(el("h4",null,"Мышцы"),el("p",null,x.muscles));
   b.append(el("h4",null,"Как делать"));const ol=el("ol");(x.how||[]).forEach(t=>ol.append(el("li",null,t)));b.append(ol);

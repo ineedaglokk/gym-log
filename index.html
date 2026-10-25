@@ -206,17 +206,29 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .chips button[aria-pressed="true"]{background:var(--fg);border-color:var(--fg);color:var(--bg)}
 
 /* library rows */
-.lib{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.lib li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
-.lib li:last-child{border-bottom:0}
-.lib .open{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;cursor:pointer;color:var(--fg)}
-.lib .open img{flex:none;width:54px;height:54px;border-radius:10px;object-fit:cover;background:var(--sunk)}
-.lib .open span{min-width:0;display:flex;flex-direction:column}
-.lib .open b{font-weight:600;font-size:15px;line-height:1.25}
-.lib .open small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* library: square cards — colour = muscle group, icon = equipment */
+.libgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:430px){.libgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.lc{position:relative;content-visibility:auto;contain-intrinsic-size:auto 170px}
+.lc-open{width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px;border:0;border-radius:16px;background:var(--tbg);color:var(--fg);text-align:left;cursor:pointer;overflow:hidden}
+.lc-open:active{transform:scale(.98)}
+.lc-open .tile{width:58px;height:58px;background:transparent;padding:0;margin:2px 0 0 -2px}
+.lc-name{margin-top:auto;font-weight:600;font-size:14px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.lc-eq{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.lc-add{position:absolute;top:8px;right:8px;width:36px;height:36px;border-radius:50%;border:0;background:var(--surface);color:var(--accent);font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;box-shadow:0 1px 3px rgb(0 0 0 / .14)}
+.lc-add.done{background:var(--up-soft);color:var(--up);font-size:17px;cursor:default}
+.tile{display:inline-grid;place-items:center;color:var(--tfg);background:var(--tbg);border-radius:10px;padding:6px}
+.tile svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.pc-thumb.tile{padding:8px}
+.lc,.tile{--tbg:hsl(var(--h) 38% 93%);--tfg:hsl(var(--h) 45% 36%)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) :is(.lc,.tile){--tbg:hsl(var(--h) 18% 17%);--tfg:hsl(var(--h) 55% 72%)}}
+:root[data-theme="dark"] :is(.lc,.tile){--tbg:hsl(var(--h) 18% 17%);--tfg:hsl(var(--h) 55% 72%)}
+.g0{--h:150}.g1{--h:212}.g2{--h:345}.g3{--h:28}.g4{--h:262}.g5{--h:292}.g6{--h:46}.g7{--h:182}.g8{--h:95}.g9{--h:5}
+.libcredit{font-size:12px;color:var(--muted);margin:0}
+.libcredit a{color:inherit}
 .addbtn{flex:none;width:40px;height:40px;border-radius:11px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font-size:22px;line-height:1;cursor:pointer}
 .addbtn.done{background:var(--up-soft);border-color:var(--up-soft);color:var(--up);font-size:18px;cursor:default}
-.libgroup{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:14px 0 2px}
+.libgroup{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin:6px 0 -2px}
 .custom{display:flex;gap:8px}
 .custom input{flex:1;min-width:0;height:42px;border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:16px var(--body);padding:0 12px}
 
@@ -302,6 +314,22 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="eq0" viewBox="0 0 48 48"><path d="M24 40C11 31 6 24 6 17a8.5 8.5 0 0 1 18-4 8.5 8.5 0 0 1 18 4c0 7-5 14-18 23z"/><path d="M11 24h7l3-5 4 9 3-4h9"/></symbol>
+  <symbol id="eq1" viewBox="0 0 48 48"><path d="M16.5 22.5C14 11 34 11 31.5 22.5"/><circle cx="24" cy="30" r="11"/></symbol>
+  <symbol id="eq2" viewBox="0 0 48 48"><circle cx="24" cy="24" r="15"/><circle cx="24" cy="24" r="4.5"/></symbol>
+  <symbol id="eq3" viewBox="0 0 48 48"><rect x="13" y="16" width="22" height="26" rx="2.5"/><path d="M13 23h22M13 29h22M13 35h22M24 6v10"/><circle cx="24" cy="6" r="2"/></symbol>
+  <symbol id="eq4" viewBox="0 0 48 48"><path d="M7 19v10M13 14v20M35 14v20M41 19v10M13 24h22"/></symbol>
+  <symbol id="eq5" viewBox="0 0 48 48"><path d="M8 40V20l8-8h24v20l-8 8H8zM8 20h24v20M32 20l8-8"/></symbol>
+  <symbol id="eq6" viewBox="0 0 48 48"><path d="M3 24h42M9 13v22M14 16v16M34 16v16M39 13v22"/></symbol>
+  <symbol id="eq7" viewBox="0 0 48 48"><path d="M6 20h36v6H6zM11 26v12M37 26v12M9 38h4M35 38h4"/></symbol>
+  <symbol id="eq8" viewBox="0 0 48 48"><path d="M8 6h32"/><circle cx="24" cy="13" r="5"/><path d="M24 18v14M16 33h16M16 33v4M32 33v4"/></symbol>
+  <symbol id="eq9" viewBox="0 0 48 48"><circle cx="24" cy="9" r="4"/><path d="M24 15v13M13 19l11 4 11-4M24 28l-7 13M24 28l7 13"/></symbol>
+  <symbol id="eq10" viewBox="0 0 48 48"><path d="M5 9h38M11 9v32M37 9v32"/><circle cx="24" cy="17" r="3.5"/><path d="M17 9l4 7M31 9l-4 7M24 21v10M24 31l-4 9M24 31l4 9"/></symbol>
+  <symbol id="eq11" viewBox="0 0 48 48"><circle cx="24" cy="6" r="2.5"/><path d="M24 8.5v6M24 14.5l-9 21M24 14.5l9 21M11 35.5h7M30 35.5h7"/></symbol>
+  <symbol id="eq12" viewBox="0 0 48 48"><rect x="13" y="7" width="22" height="34" rx="11"/><rect x="18.5" y="13" width="11" height="22" rx="5.5"/></symbol>
+  <symbol id="eq13" viewBox="0 0 48 48"><path d="M5 38h30a7 7 0 0 0 0-14H23"/><circle cx="35" cy="31" r="3"/><path d="M5 38v-6h18"/></symbol>
+</svg>
 <header class="top">
   <div class="wrap">
     <nav class="tabs" role="tablist" aria-label="Разделы">
@@ -426,9 +454,10 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
   <div class="panel">
     <div class="bar"><h3 id="libTitle">Библиотека упражнений</h3><button type="button" class="closebtn" data-close aria-label="Закрыть">✕</button></div>
     <div class="body">
-      <input class="search" id="libSearch" type="search" placeholder="Поиск: присед, грудь, гантели…" aria-label="Поиск упражнения" autocomplete="off">
+      <input class="search" id="libSearch" type="search" placeholder="Поиск: тяга блока, жим, гантели…" aria-label="Поиск упражнения" autocomplete="off">
       <div class="chips" id="libChips" role="group" aria-label="Группа мышц"></div>
-      <ul class="lib" id="libList"></ul>
+      <div id="libList" style="display:flex;flex-direction:column;gap:12px"></div>
+      <p class="libcredit">Названия упражнений и страницы с техникой — <a href="https://fitpush.ru/exercises/" target="_blank" rel="noopener">fitpush.ru</a>. Нажми на карточку, чтобы открыть технику, или «+», чтобы добавить в программу.</p>
       <div class="card">
         <span class="eyebrow">Нет нужного упражнения?</span>
         <div class="custom"><input id="customName" maxlength="60" placeholder="Название своего упражнения" aria-label="Название своего упражнения"><button type="button" class="btn primary" id="customAdd">Добавить</button></div>
@@ -448,6 +477,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <script src="lib.js"></script>
+<script src="fp.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -160,7 +160,7 @@ const tSuf=e=>e.unit==="минуты"?" мин":" с";
 const isBody=e=>e.unit==="свой вес + кг";
 const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
-const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"cal",
+const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
   libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null};
 
@@ -705,12 +705,12 @@ function renderYear(){
   renderStats();
   document.querySelectorAll("#yearSeg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.y===S.yearPane)));
   $("#calPane").hidden=S.yearPane!=="cal";$("#progPane").hidden=S.yearPane!=="prog";
+  if(S.yearPane==="prog"){renderProgress();return;}
   const y=S.year,t=today(),now=new Date();
   $("#yearTitle").textContent=y;
   $("#nextYear").disabled=y>=now.getFullYear();
   const done=new Set([...S.docs.entries()].filter(([,doc])=>isWorkout(doc)).map(([d])=>d));
   $("#yearCount").textContent=workouts([...done].filter(d=>d.startsWith(y+"-")).length)+" за год";
-  if(S.yearPane==="prog"){renderProgress();return;}
   const planDays=new Set();PROG.workouts.forEach(w=>w.days.forEach(d=>planDays.add(d)));
   const host=$("#months");host.textContent="";
   for(let m=0;m<12;m++){
@@ -742,82 +742,95 @@ document.querySelectorAll("#yearSeg button").forEach(b=>b.addEventListener("clic
 $("#prevYear").addEventListener("click",()=>{S.year--;renderYear();});
 $("#nextYear").addEventListener("click",()=>{S.year++;renderYear();});
 
-/* progress */
-function metricsFor(e){
-  if(!e)return [["bw","Вес тела"]];
-  if(isTime(e))return [["reps","Лучшее время"]];
-  if(isBody(e))return [["reps","Макс. повторы"],["top","Доп. вес"]];
-  return [["top","Макс. вес"],["vol","Объём"]];
+/* progress: a summary of the month — where the weight went up since the first workout of the month,
+   and where it dropped compared with the previous workout. Unchanged exercises are not shown. */
+const curYM=()=>today().slice(0,7);
+function shiftYM(ym,n){const a=ym.split("-").map(Number);const d=new Date(a[0],a[1]-1+n,1);return d.getFullYear()+"-"+pad(d.getMonth()+1);}
+const exById=id=>allEx().find(x=>x.id===id)||DEFAULT_EX.find(x=>x.id===id)||null;
+/* the number tracked per exercise: heaviest set; extra weight (or reps) for bodyweight moves; time for holds and cardio */
+function trackerFor(e,sessions){
+  if(isTime(e))return {u:e.unit==="минуты"?"мин":"с",val:x=>topReps(x)};
+  if(isBody(e)&&sessions.some(s=>topWeight(s.x)))return {u:"кг доп.",val:x=>topWeight(x)||null};
+  if(isBody(e))return {u:"повт.",val:x=>topReps(x)};
+  return {u:"кг",val:x=>topWeight(x)};
 }
-function progressItems(){
-  /* exercises in the program first, then anything else that has history */
-  const AE=allEx();
-  const items=AE.map(e=>({id:e.id,e:e}));
-  const extra={};
-  for(const [,doc] of S.docs){if(doc.ex)Object.keys(doc.ex).forEach(id=>{if(!AE.some(e=>e.id===id))extra[id]=1;});}
-  Object.keys(extra).forEach(id=>{const d=DEFAULT_EX.find(e=>e.id===id);items.push({id:id,e:d||{id:id,name:"Старое упражнение",unit:"кг",sets:3,lo:10,hi:12}});});
-  items.push({id:"bw",e:null});
-  return items;
+function sessionsOf(id,days){
+  return days.map(d=>{const doc=S.docs.get(d),raw=doc&&doc.ex&&doc.ex[id];return hasSets(raw)?{d:d,x:norm(raw)}:null;}).filter(Boolean);
+}
+function monthSummary(ym){
+  const days=[...S.docs.keys()].filter(d=>d.slice(0,7)===ym).sort();
+  const ids=new Set();
+  days.forEach(d=>{const doc=S.docs.get(d);if(doc.ex)Object.keys(doc.ex).forEach(id=>{if(hasSets(doc.ex[id]))ids.add(id);});});
+  const items=[];
+  ids.forEach(id=>{
+    const e=exById(id);if(!e)return;
+    const ss=sessionsOf(id,days),tr=trackerFor(e,ss);
+    const pts=ss.map(s=>({d:s.d,v:tr.val(s.x)})).filter(p=>p.v!=null);
+    if(pts.length<2)return;
+    const first=pts[0],prev=pts[pts.length-2],last=pts[pts.length-1];
+    const kind=last.v<prev.v?"down":(last.v>first.v?"up":null);
+    if(kind)items.push({id:id,e:e,u:tr.u,pts:pts,first:first,prev:prev,last:last,kind:kind});
+  });
+  const bw=days.map(d=>({d:d,v:S.docs.get(d).bw})).filter(p=>p.v!=null);
+  return {days:days,nW:days.filter(d=>isWorkout(S.docs.get(d))).length,items:items,bw:bw};
+}
+const signed=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(Math.round(v*100)/100));
+function goDay(d){flush();S.date=d;S.logW=null;setView("log");renderLog();window.scrollTo({top:0});}
+function progItem(it){
+  const box=el("div","pi "+it.kind);
+  const head=el("button","pi-head");head.type="button";head.setAttribute("aria-expanded",String(S.pmOpen===it.id));
+  const dv=it.kind==="up"?it.last.v-it.first.v:it.last.v-it.prev.v;
+  head.append(el("span","pi-name",it.e.name),el("span","pi-delta",signed(dv)+" "+it.u));
+  head.addEventListener("click",()=>{S.pmOpen=S.pmOpen===it.id?null:it.id;renderProgress();});
+  box.append(head);
+  const path=el("div","pi-path");
+  it.pts.forEach((p,i)=>{
+    if(i)path.append(el("span",null,"→"));
+    const b=el("button",i===it.pts.length-1?"now":null);b.type="button";
+    b.append(short(p.d)+" · ",el("b",null,fmt(p.v)));b.setAttribute("aria-label","Открыть тренировку "+short(p.d));
+    b.addEventListener("click",()=>goDay(p.d));path.append(b);
+  });
+  box.append(path);
+  if(it.kind==="down")box.append(el("p","pi-note","В прошлый раз ("+short(it.prev.d)+") было "+fmt(it.prev.v)+" "+it.u+", сейчас "+fmt(it.last.v)+". Верни "+fmt(it.prev.v)+" на следующей тренировке — и дальше вверх."));
+  else box.append(el("p","pi-note",fmt(it.first.v)+" → "+fmt(it.last.v)+" "+it.u+" с "+short(it.first.d)+". Так держать."));
+  if(S.pmOpen===it.id){
+    /* whole history of this exercise */
+    const all=[...S.docs.keys()].sort(),ss=sessionsOf(it.id,all),tr=trackerFor(it.e,ss);
+    const pts=ss.map(s=>({d:s.d,v:tr.val(s.x)})).filter(p=>p.v!=null);
+    const ch=el("div","chart");box.append(el("span","eyebrow","Вся история, "+tr.u),ch);
+    requestAnimationFrame(()=>drawChart(ch,pts));   /* draw once the card is on the page and has a width */
+  }
+  return box;
 }
 function renderProgress(){
-  const items=progressItems();
-  if(!S.sel||!items.some(it=>it.id===S.sel))S.sel=items[0].id;
-  const it=items.find(x=>x.id===S.sel),e=it.e;
-  const mets=metricsFor(e);
-  if(!mets.some(m=>m[0]===S.metric))S.metric=mets[0][0];
-
-  const p=$("#picker");p.textContent="";
-  items.forEach(o=>{
-    const b=el("button",null,o.e?o.e.name:"Вес тела");b.type="button";b.setAttribute("aria-pressed",String(S.sel===o.id));
-    b.addEventListener("click",()=>{S.sel=o.id;renderProgress();});p.append(b);
-  });
-
-  const pts=[];
-  [...S.docs.keys()].sort().forEach(d=>{
-    const doc=S.docs.get(d);
-    if(!e){if(doc.bw!=null)pts.push({d:d,v:doc.bw});return;}
-    const raw=doc.ex&&doc.ex[e.id];if(!hasSets(raw))return;
-    const x=norm(raw);
-    const v=S.metric==="vol"?volume(x):(S.metric==="reps"?topReps(x):topWeight(x));
-    if(v!=null)pts.push({d:d,v:v,x:x});
-  });
-  const unit=!e?"кг":(S.metric==="reps"?(isTime(e)?"с":"повт."):"кг");
-
+  const ym=S.pm||(S.pm=curYM());
+  const a=ym.split("-").map(Number);
+  $("#pmTitle").textContent=MON[a[1]-1]+(a[0]!==new Date().getFullYear()?" "+a[0]:"");
+  $("#pmNext").disabled=ym>=curYM();
+  const sm=monthSummary(ym);
+  $("#pmCount").textContent=workouts(sm.nW)+" за месяц";
   const body=$("#progBody");body.textContent="";
-  if(!pts.length){
-    body.append(el("div","empty",!e?"Пока нет записей веса тела. Вписывай вес утром на вкладке «Тренировка».":"По упражнению «"+e.name+"» ещё нет записей. Заполни его на вкладке «Тренировка» — здесь появится график."));
-    return;
+  const up=sm.items.filter(i=>i.kind==="up"),down=sm.items.filter(i=>i.kind==="down");
+  if(!sm.nW)body.append(el("div","empty","В "+MON_IN[a[1]-1]+" тренировок пока нет. После двух тренировок здесь появится сводка: где вес вырос, а где просел."));
+  else if(!sm.items.length)body.append(el("div","empty",sm.nW<2?"Сводка появится после второй тренировки месяца: здесь будет видно, где вес вырос, а где просел.":"Пока без изменений: веса как на первой тренировке месяца. Где добил верх диапазона — бери больше, подсказка на вкладке «Тренировка»."));
+  else{
+    const sum=el("div","psum");
+    if(up.length)sum.append(el("span","pchip","↑ "+up.length+" "+plural(up.length,"стало лучше","стали лучше","стали лучше")));
+    if(down.length)sum.append(el("span","pchip down","↓ "+down.length+" "+plural(down.length,"просело","просели","просели")));
+    body.append(sum);
+    if(down.length){body.append(el("h4","ptitle","Просело — давай вернём"));down.forEach(it=>body.append(progItem(it)));}
+    if(up.length){body.append(el("h4","ptitle","Стало лучше"));up.sort((x,y)=>(y.last.v-y.first.v)/(y.first.v||1)-(x.last.v-x.first.v)/(x.first.v||1)).forEach(it=>body.append(progItem(it)));}
   }
-  const card=el("div","card");
-  if(mets.length>1){
-    const seg=el("div","seg");
-    mets.forEach(([k,t])=>{const b=el("button",null,t);b.type="button";b.setAttribute("aria-pressed",String(S.metric===k));b.addEventListener("click",()=>{S.metric=k;renderProgress();});seg.append(b);});
-    card.append(seg);
+  if(sm.bw.length>=2){
+    const f=sm.bw[0],l=sm.bw[sm.bw.length-1];
+    const box=el("div","pi neutral");const head=el("div","pi-head");
+    head.append(el("span","pi-name","Вес тела"),el("span","pi-delta",signed(l.v-f.v)+" кг"));
+    box.append(head,el("p","pi-note",fmt(f.v)+" кг ("+short(f.d)+") → "+fmt(l.v)+" кг ("+short(l.d)+")"));
+    body.append(box);
   }
-  const first=pts[0].v,lastv=pts[pts.length-1].v,diff=Math.round((lastv-first)*100)/100;
-  const g=el("div","gain");
-  if(pts.length>1){g.append(fmt(first)+" → "+fmt(lastv)+" "+unit+" ");const sp=el("span",diff>0&&e?"plus":"","("+(diff>0?"+":"")+fmt(diff)+")");g.append(sp);}
-  else g.textContent=fmt(lastv)+" "+unit;
-  const sub=!e?"Вес тела по дням":({top:isBody(e)?"Самый большой доп. вес за тренировку":"Самый тяжёлый подход за тренировку",vol:"Объём: вес × повторы, сумма за все подходы",reps:isTime(e)?"Самый долгий подход за тренировку":"Больше всего повторов в подходе"})[S.metric];
-  const ch=el("div","chart");
-  card.append(g,ch);body.append(card);
-  drawChart(ch,pts);
-
-  const tw=el("div","card tablewrap");const tb=el("table");
-  const hr=el("tr");(!e?["Дата","Вес тела"]:["Дата","Подходы"].concat(isTime(e)||isBody(e)?[]:["Объём"])).forEach(t=>hr.append(el("th",null,t)));
-  const thead=el("thead");thead.append(hr);tb.append(thead);
-  const tbody=el("tbody");
-  pts.slice().reverse().forEach(pt=>{
-    const tr=el("tr");tr.append(el("td",null,short(pt.d)+" "+parse(pt.d).getFullYear()));
-    if(!e)tr.append(el("td","w",fmt(pt.v)+" кг"));
-    else{
-      tr.append(el("td","w",setsText(pt.x,e)));
-      if(!isTime(e)&&!isBody(e)){const vol=volume(pt.x);tr.append(el("td",null,vol==null?"—":fmt(vol)+" кг"));}
-    }
-    tbody.append(tr);
-  });
-  tb.append(tbody);tw.append(tb);body.append(tw);
 }
+$("#pmPrev").addEventListener("click",()=>{S.pm=shiftYM(S.pm||curYM(),-1);S.pmOpen=null;haptic("tap");renderProgress();});
+$("#pmNext").addEventListener("click",()=>{const n=shiftYM(S.pm||curYM(),1);if(n<=curYM()){S.pm=n;S.pmOpen=null;haptic("tap");renderProgress();}});
 function niceTicks(lo,hi,n){
   const raw=(hi-lo)/n,mag=Math.pow(10,Math.floor(Math.log10(raw)));
   const st=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw)||10*mag;

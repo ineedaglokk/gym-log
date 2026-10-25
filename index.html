@@ -14,18 +14,18 @@
 :root{
   --bg:#F1F2F0; --surface:#FFFFFF; --sunk:#E6E8E5; --fg:#15181C; --muted:#5D6570; --line:#D5D8D4;
   --accent:#2347C2; --accent-ink:#FFFFFF; --accent-soft:#E2E7FA;
-  --up:#16794A; --up-soft:#DDF0E4; --danger:#B3261E;
+  --up:#16794A; --up-soft:#DDF0E4; --danger:#B3261E; --danger-soft:#FAE3E1;
   --display:"Oswald","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
   --body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#101215; --surface:#191C20; --sunk:#24282D; --fg:#ECEEF0; --muted:#9BA4AE; --line:#2D3238;
   --accent:#8099FF; --accent-ink:#0D1122; --accent-soft:#1E2643;
-  --up:#55C98A; --up-soft:#15301F; --danger:#FF8A80; color-scheme:dark}}
+  --up:#55C98A; --up-soft:#15301F; --danger:#FF8A80; --danger-soft:#3A1C1A; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#101215; --surface:#191C20; --sunk:#24282D; --fg:#ECEEF0; --muted:#9BA4AE; --line:#2D3238;
   --accent:#8099FF; --accent-ink:#0D1122; --accent-soft:#1E2643;
-  --up:#55C98A; --up-soft:#15301F; --danger:#FF8A80; color-scheme:dark}
+  --up:#55C98A; --up-soft:#15301F; --danger:#FF8A80; --danger-soft:#3A1C1A; color-scheme:dark}
 
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -300,6 +300,27 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .morebody{display:flex;flex-direction:column;gap:18px;padding-top:8px}
 #progPane{display:flex;flex-direction:column;gap:12px}
 #progBody{display:flex;flex-direction:column;gap:12px}
+#calPane{display:flex;flex-direction:column;gap:12px}
+/* monthly progress summary */
+.psum{display:flex;gap:8px;flex-wrap:wrap}
+.pchip{font-size:13px;font-weight:600;padding:6px 11px;border-radius:999px;background:var(--up-soft);color:var(--up)}
+.pchip.down{background:var(--danger-soft);color:var(--danger)}
+.ptitle{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin:4px 0 -4px}
+.pi{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--up);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.pi.down{border-left-color:var(--danger)}
+.pi.neutral{border-left-color:var(--line)}
+.pi-head{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;color:var(--fg);cursor:pointer;width:100%}
+.pi-name{flex:1;min-width:0;font-weight:600;font-size:15px;line-height:1.3}
+.pi-delta{flex:none;font:600 15px var(--display);padding:4px 10px;border-radius:999px;background:var(--up-soft);color:var(--up);font-variant-numeric:tabular-nums}
+.pi.down .pi-delta{background:var(--danger-soft);color:var(--danger)}
+.pi.neutral .pi-delta{background:var(--sunk);color:var(--fg)}
+.pi-path{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.pi-path button{border:0;background:var(--sunk);color:var(--fg);border-radius:8px;padding:5px 8px;font-size:12.5px;cursor:pointer;line-height:1.2}
+.pi-path button b{font:600 14px var(--display);font-variant-numeric:tabular-nums}
+.pi-path button.now{background:var(--up-soft);color:var(--up)}
+.pi.down .pi-path button.now{background:var(--danger-soft);color:var(--danger)}
+.pi-note{margin:0;font-size:13.5px}
+.pi.down .pi-note{color:var(--danger)}
 .closebtn{flex:none;width:34px;height:34px;border-radius:50%;border:0;background:var(--sunk);font-size:18px;line-height:1;cursor:pointer;color:var(--fg)}
 
 </style>
@@ -417,24 +438,30 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 
   <!-- YEAR: calendar + progress -->
   <section id="v-year" role="tabpanel" aria-labelledby="t-year" hidden>
-    <div class="yearhead">
-      <button type="button" class="iconbtn" id="prevYear" aria-label="Предыдущий год">‹</button>
-      <div style="text-align:center"><span class="eyebrow" id="yearCount">0 тренировок</span><h2 id="yearTitle">2026</h2></div>
-      <button type="button" class="iconbtn" id="nextYear" aria-label="Следующий год">›</button>
-    </div>
     <div class="seg wide2" id="yearSeg" role="group" aria-label="Что показать">
-      <button type="button" data-y="cal" aria-pressed="true">Календарь</button>
-      <button type="button" data-y="prog" aria-pressed="false">Прогресс</button>
+      <button type="button" data-y="prog" aria-pressed="true">Прогресс</button>
+      <button type="button" data-y="cal" aria-pressed="false">Календарь</button>
     </div>
-    <div id="calPane"><div class="months" id="months"></div></div>
-    <div id="progPane" hidden>
+    <div id="progPane">
+      <div class="yearhead">
+        <button type="button" class="iconbtn" id="pmPrev" aria-label="Предыдущий месяц">‹</button>
+        <div style="text-align:center"><span class="eyebrow" id="pmCount">0 тренировок</span><h2 id="pmTitle">Месяц</h2></div>
+        <button type="button" class="iconbtn" id="pmNext" aria-label="Следующий месяц">›</button>
+      </div>
+      <div id="progBody"></div>
+    </div>
+    <div id="calPane" hidden>
+      <div class="yearhead">
+        <button type="button" class="iconbtn" id="prevYear" aria-label="Предыдущий год">‹</button>
+        <div style="text-align:center"><span class="eyebrow" id="yearCount">0 тренировок</span><h2 id="yearTitle">2026</h2></div>
+        <button type="button" class="iconbtn" id="nextYear" aria-label="Следующий год">›</button>
+      </div>
       <div class="stats">
         <div class="stat"><div class="v" id="stMonth">0</div><div class="k" id="stMonthK">в этом месяце</div></div>
         <div class="stat"><div class="v" id="stTotal">0</div><div class="k">всего</div></div>
         <div class="stat"><div class="v" id="stLast">—</div><div class="k">последняя</div></div>
       </div>
-      <div class="picker" id="picker" role="group" aria-label="Упражнение"></div>
-      <div id="progBody"></div>
+      <div class="months" id="months"></div>
     </div>
   </section>
 </main>

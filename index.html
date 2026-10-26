@@ -128,6 +128,15 @@ td{padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
 tr:last-child td{border-bottom:0}
 td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:22px 16px;text-align:center;color:var(--muted)}
+.welcome{list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 18px;display:flex;flex-direction:column;gap:10px}
+.welcome b{font-size:19px}
+.welcome p{margin:0;color:var(--muted);line-height:1.45}
+.welcome .rowbtns{margin-top:4px}
+.intro{display:flex;flex-direction:column;gap:8px}
+.intro b{font-size:17px}
+.intro ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;line-height:1.4}
+.intro p{margin:0}
+.linkbtn.inl{display:inline;padding:0;font:inherit;vertical-align:baseline}
 
 /* year */
 .yearhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -418,21 +427,18 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 
   <!-- PROGRAM -->
   <section id="v-prog" role="tabpanel" aria-labelledby="t-prog" hidden>
-    <div class="chips wktabs" id="wkTabs" role="group" aria-label="Тренировки программы"></div>
-    <input class="wkname" id="wkName" maxlength="30" autocomplete="off" aria-label="Название тренировки">
-    <div class="daysrow" id="daysRow" role="group" aria-label="Дни этой тренировки"></div>
-    <div class="card remind" id="remindCard" hidden>
-      <div class="rm-row">
-        <div class="rm-text"><b>🔔 Сообщения от Шлёпы</b><p class="target" id="remindNote">Напомню о тренировке и напишу, где ты стал сильнее.</p></div>
-        <label class="switch"><input type="checkbox" id="remindOn" aria-label="Сообщения от Шлёпы"><span></span></label>
-      </div>
-      <label class="rm-time" id="remindTimeWrap" hidden><span>Во сколько</span><select id="remindHour" aria-label="Время напоминания"></select></label>
-      <div class="rm-time" id="remindFunWrap" hidden><span>Приколы пару раз в неделю</span><label class="switch"><input type="checkbox" id="remindFun" aria-label="Приколы от Шлёпы"><span></span></label></div>
+    <div class="card intro" id="progIntro" hidden>
+      <b>👋 Собери свою программу</b>
+      <ol>
+        <li>Назови тренировку — например, «Ноги» или «Верх».</li>
+        <li>Отметь, в какие дни её делаешь.</li>
+        <li>Добавь упражнения из библиотеки и задай подходы и повторы.</li>
+      </ol>
+      <p class="target">Нужно несколько разных тренировок — жми «+ Тренировка». Или возьми <button type="button" class="linkbtn inl" id="introTpl">готовую схему</button> и поменяй под себя.</p>
     </div>
-    <div class="pehead"><span class="eyebrow" id="peCount">Упражнения</span><button type="button" class="btn small" id="peEdit">Порядок и удаление</button></div>
-    <div class="pegrid" id="peList"></div>
-    <button type="button" class="btn wide primary" id="peAdd">+ Добавить упражнение</button>
-
+    <div class="chips wktabs" id="wkTabs" role="group" aria-label="Тренировки программы"></div>
+    <input class="wkname" id="wkName" maxlength="30" autocomplete="off" placeholder="Название тренировки" aria-label="Название тренировки">
+    <div class="daysrow" id="daysRow" role="group" aria-label="Дни этой тренировки"></div>
     <details class="more">
       <summary>Готовые схемы, обмен и настройки</summary>
       <div class="morebody">
@@ -470,10 +476,22 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
             <button type="button" class="btn danger" id="wkDelYes">Удалить</button>
             <button type="button" class="btn" id="wkDelNo">Отмена</button>
           </div>
-          <button type="button" class="linkbtn quiet" id="peReset" style="align-self:flex-start">Вернуть стандартную программу</button>
+          <button type="button" class="linkbtn quiet" id="peReset" style="align-self:flex-start">Очистить программу и собрать заново</button>
         </div>
       </div>
     </details>
+    <div class="pehead"><span class="eyebrow" id="peCount">Упражнения</span><button type="button" class="btn small" id="peEdit">Порядок и удаление</button></div>
+    <div class="pegrid" id="peList"></div>
+    <button type="button" class="btn wide primary" id="peAdd">+ Добавить упражнение</button>
+
+    <div class="card remind" id="remindCard" hidden>
+      <div class="rm-row">
+        <div class="rm-text"><b>🔔 Сообщения от Шлёпы</b><p class="target" id="remindNote">Напомню о тренировке и напишу, где ты стал сильнее.</p></div>
+        <label class="switch"><input type="checkbox" id="remindOn" aria-label="Сообщения от Шлёпы"><span></span></label>
+      </div>
+      <label class="rm-time" id="remindTimeWrap" hidden><span>Во сколько</span><select id="remindHour" aria-label="Время напоминания"></select></label>
+      <div class="rm-time" id="remindFunWrap" hidden><span>Приколы пару раз в неделю</span><label class="switch"><input type="checkbox" id="remindFun" aria-label="Приколы от Шлёпы"><span></span></label></div>
+    </div>
   </section>
 
   <!-- YEAR: calendar + progress -->
@@ -546,6 +564,6 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <script src="cat.js?v=c002ea8a"></script>
-<script src="app.js?v=c5b4532b"></script>
+<script src="app.js?v=5ab86167"></script>
 </body>
 </html>

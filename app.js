@@ -34,7 +34,8 @@ const libOf=id=>LIBMAP[id]||(OLD2NEW[id]?LIBMAP[SID(OLD2NEW[id])]:null)||null;
 const DAY_S=["пн","вт","ср","чт","пт","сб","вс"];
 const MAX_EX=20;
 
-/* Vlad's starting program; ids are kept so old records still line up */
+/* Vlad's first program. New users start empty and build their own; this stays only for people
+   who already logged workouts with it before programs were saved (their ids must keep matching) */
 const DEFAULT_EX=[
   {id:"legpress",lib:SID("Жим ногами"),name:"Жим ногами",sets:3,lo:10,hi:12,step:5,start:80,unit:"кг"},
   {id:"incline",lib:SID("Жим гантелей на наклонной скамье"),name:"Жим гантелей на наклонной",sets:3,lo:8,hi:12,step:2,start:14,unit:"кг в руке"},
@@ -49,7 +50,8 @@ const DEFAULT_EX=[
 const DEFAULT_LIB={};DEFAULT_EX.forEach(e=>{DEFAULT_LIB[e.id]=e.lib;});
 const MAX_W=7,MAX_TOTAL=40;
 const defaultProg=()=>({workouts:[{id:"full",name:"Фулбоди",days:[0,2,4],ex:DEFAULT_EX.map(e=>Object.assign({},e))}],saved:false});
-let PROG=defaultProg();
+const emptyProg=()=>({workouts:[{id:"w1",name:"Моя тренировка",days:[],ex:[]}],saved:false});
+let PROG=emptyProg();
 const allEx=()=>{const m={},out=[];PROG.workouts.forEach(w=>w.ex.forEach(e=>{if(!m[e.id]){m[e.id]=1;out.push(e);}}));return out;};
 const totalEx=()=>PROG.workouts.reduce((n,w)=>n+w.ex.length,0);
 
@@ -109,7 +111,7 @@ function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.editKey=null;S.peEdit=false;}
 /* ready-made splits for friends */
 const TEMPLATES=[
   {key:"full",name:"Фулбоди, 3 дня",note:"Одна тренировка на всё тело: пн, ср, пт",
-   make:()=>defaultProg().workouts},
+   w:[["Фулбоди",[0,2,4],["Жим ногами","Жим гантелей на наклонной скамье","Румынская тяга с гантелями","Тяга верхнего блока","Ягодичный мостик со штангой с опорой на скамью","Горизонтальная тяга блока к поясу (узкий хват)","Подъём гантелей в стороны","Подъём гантелей на бицепс стоя","Разгибания на трицепс с канатом"]]]},
   {key:"ul",name:"Верх / низ, 4 дня",note:"Верх: пн, чт · Низ: вт, пт",
    w:[["Верх",[0,3],["Жим штанги лёжа","Тяга верхнего блока","Жим гантелей над головой","Горизонтальная тяга блока к поясу (узкий хват)","Подъём гантелей в стороны","Подъём гантелей на бицепс стоя","Разгибания на трицепс с канатом"]],
       ["Низ",[1,4],["Приседания со штангой на спине","Румынская тяга","Жим ногами","Сгибания ног в тренажере лёжа","Ягодичный мостик со штангой с опорой на скамью","Подъём на носки стоя","Планка"]]]},
@@ -281,6 +283,23 @@ function renderWkRow(W){
     box.append(b);
   });
 }
+/* first visit: no program yet — everyone builds their own */
+function welcomeCard(){
+  const li=el("li","welcome");
+  li.append(el("b",null,"👋 Сначала собери свою программу"),
+    el("p",null,"Выбери дни тренировок и упражнения из библиотеки — и здесь появится план на каждый день с подходами и весами."));
+  const go=el("button","btn primary","Собрать программу");go.type="button";
+  go.addEventListener("click",()=>{haptic("tap");setView("prog");window.scrollTo({top:0});});
+  const tp=el("button","btn","Взять готовую схему");tp.type="button";
+  tp.addEventListener("click",()=>{haptic("tap");setView("prog");showTemplates();});
+  const row=el("div","rowbtns");row.append(go,tp);li.append(row);
+  return li;
+}
+function showTemplates(){
+  const d=$("#v-prog details.more");if(d)d.open=true;
+  renderTemplates();
+  const t=$("#tplList");if(t)setTimeout(()=>t.scrollIntoView({behavior:"smooth",block:"center"}),50);
+}
 function renderLog(){
   S.touched=false;
   const W=logWorkout(),EX=W.ex;S.curW=W;
@@ -298,6 +317,7 @@ function renderLog(){
 
   renderWkRow(W);
   const list=$("#exList");list.textContent="";
+  if(!totalEx()){list.append(welcomeCard());return;}
   if(!EX.length){list.append(el("li","empty","В тренировке «"+W.name+"» пока нет упражнений. Собери её во вкладке «Программа»."));return;}
   EX.forEach((e,i)=>{
     const prev=prevEntry(e.id,S.date,e.sets);
@@ -451,6 +471,7 @@ function thumb(e){
 }
 function renderProgEditor(){
   const W=PW(),EX=W.ex;
+  {const intro=$("#progIntro");if(intro)intro.hidden=totalEx()>0;}
   renderWkTabs();
   if(document.activeElement!==$("#wkName"))$("#wkName").value=W.name;
   $("#wkDel").hidden=PROG.workouts.length<2;$("#wkDelConfirm").hidden=true;
@@ -517,6 +538,7 @@ function finishProgEditor(EX){
   renderRemind();
 }
 $("#peAdd").addEventListener("click",()=>openLib());
+on("#introTpl","click",()=>{haptic("tap");showTemplates();});
 on("#peEdit","click",()=>{S.peEdit=!S.peEdit;haptic("tap");renderProgEditor();});
 
 /* messages from the bot: reminders on training days and a report 2 hours after a workout.
@@ -724,9 +746,9 @@ $("#tplYes").addEventListener("click",()=>{
 let resetArm=null;
 $("#peReset").addEventListener("click",ev=>{
   const b=ev.currentTarget;
-  if(!resetArm){b.textContent="Точно вернуть? Нажми ещё раз";resetArm=setTimeout(()=>{resetArm=null;b.textContent="Вернуть стандартную программу";},3500);return;}
-  clearTimeout(resetArm);resetArm=null;b.textContent="Вернуть стандартную программу";
-  setProg(defaultProg());renderProgEditor();saveProg();toast("Стандартная программа вернулась");
+  if(!resetArm){b.textContent="Точно очистить? Нажми ещё раз";resetArm=setTimeout(()=>{resetArm=null;b.textContent="Очистить программу и собрать заново";},3500);return;}
+  clearTimeout(resetArm);resetArm=null;b.textContent="Очистить программу и собрать заново";
+  setProg(emptyProg());renderProgEditor();saveProg();window.scrollTo({top:0});toast("Программа очищена — собирай заново. Записи тренировок остались");
 });
 
 /* share a program as a code */
@@ -1087,6 +1109,13 @@ const h=(location.hash||"").slice(1);
 renderLog();
 setView(["log","prog","year"].indexOf(h)>=0?h:"log");
 
+/* people who trained with the old built-in program before it was ever saved keep it */
+function keepOldDefault(){
+  const ids=new Set(DEFAULT_EX.map(e=>e.id));
+  const used=[...S.docs.values()].some(d=>d&&d.ex&&Object.keys(d.ex).some(id=>ids.has(id)&&hasSets(d.ex[id])));
+  if(!used)return;
+  setProg(defaultProg());saveProg();
+}
 (async function(){
   if(tg){
     try{tg.ready();tg.expand();}catch(e){}
@@ -1114,6 +1143,7 @@ setView(["log","prog","year"].indexOf(h)>=0?h:"log");
         part.forEach(k=>{try{const v=vals&&vals[k];if(v)docs.set(k.slice(2),JSON.parse(v));}catch(e){}});
       }
       S.docs=docs;S.mode="cloud";S.loaded=true;
+      if(allKeys.indexOf(PKEY)<0)keepOldDefault();
       lsWrite(LS,Object.fromEntries(S.docs));
       setStatus("",S.docs.size?"Журнал загружен":"Пока пусто — заполни первую тренировку");
       onData();bootRemind(remindFresh);return;
@@ -1123,6 +1153,7 @@ setView(["log","prog","year"].indexOf(h)>=0?h:"log");
   const lp=lsRead(LSP);if(lp)setProg(cleanProg(lp));
   S.docs=new Map(Object.entries(lsRead(LS)||{}));
   S.loaded=true;
+  if(!lp)keepOldDefault();
   if(!cloudOK){$("#storageNote").hidden=false;setStatus("",S.docs.size?"Журнал загружен":"Пока пусто — заполни первую тренировку");}
   onData();
 })();

@@ -264,8 +264,9 @@ function setsText(x,e){
   }).filter(Boolean).join(" · ");
 }
 /* ================= progress: what counts as getting stronger =================
-   Weight and reps fold into one number — the estimated one-rep max, weight × (1 + reps/30) — so
-   60×10 and 65×5 can be compared. A workout is judged by its best set, so a tired last set does
+   Only to settle trade-offs (more weight but fewer reps), weight and reps fold into one number,
+   weight × (1 + reps/30): one rep is worth about 3% of the weight. That number is never shown —
+   as a "one-rep max" it is meaningless for 12-rep sets, machines and dumbbells. A workout is judged by its best set, so a tired last set does
    not spoil it. Clear cases need no formula: not less weight and not fewer reps, and more of one,
    is always progress (+1 rep counts). Trade-offs (more weight, fewer reps) go by the formula, and
    under 2% difference is "the same". With the best set no better, more total work still counts.
@@ -330,16 +331,14 @@ function judge(e,xa,xb,bw){
   res.now=why==="work"?allSetsText(e,B):setText(e,b);
   return res;
 }
-/* the badge: how much stronger, in words people use */
+/* the badge: what changed in the best set, in kilos and reps */
 function deltaText(e,j){
   if(j.why==="work"){const p=Math.round((workOf(e,j.B)/workOf(e,j.A)-1)*100);return "объём "+(p>0?"+":"−")+Math.abs(p)+"%";}
   if(isTime(e))return signed(j.b.r-j.a.r)+(e.unit==="минуты"?" мин":" с");
-  if(j.a.load==null||j.b.load==null){
-    if(j.b.w!==j.a.w)return signed(j.b.w-j.a.w)+" кг";
-    return signed(j.b.r-j.a.r)+" повт.";
-  }
-  const p=Math.round((e1rm(j.b.load,j.b.r)/e1rm(j.a.load,j.a.r)-1)*100);
-  return p?"сила "+(p>0?"+":"−")+Math.abs(p)+"%":(j.b.w!==j.a.w?signed(j.b.w-j.a.w)+" кг":signed(j.b.r-j.a.r)+" повт.");
+  const parts=[];
+  if(j.b.w!==j.a.w)parts.push(signed(j.b.w-j.a.w)+" кг");
+  if(j.b.r!==j.a.r)parts.push(signed(j.b.r-j.a.r)+" повт.");
+  return parts.join(", ")||"=";
 }
 /* a later set clearly better than the first one: the start was too easy.
    Heavier later and still in the rep range → start the working sets there (same rule the log uses
@@ -1158,11 +1157,11 @@ function progItem(it){
   if(S.pmOpen===it.id){
     /* whole history of this exercise */
     const all=[...S.docs.keys()].sort(),ss=sessionsOf(it.id,all),e=it.e;
-    const noBw=!isTime(e)&&isBody(e)&&it.bw==null,extra=noBw&&ss.some(s=>setsOf(e,s.x,null).some(q=>q.w));
-    const val=b=>isTime(e)||(noBw&&!extra)?b.r:noBw?b.w:Math.round(e1rm(b.load,b.r)*10)/10;
-    const pts=ss.map(s=>{const b=bestAll(e,s.x,it.bw);return b?{d:s.d,v:val(b)}:null;}).filter(Boolean);
-    const lab=isTime(e)?"лучшее время":noBw?(extra?"доп. вес в лучшем подходе, кг":"повторы в лучшем подходе"):"сила — примерный максимум на 1 раз, кг";
-    const ch=el("div","chart");box.append(el("span","eyebrow","Вся история · "+lab),ch);
+    const reps=isBody(e)&&!ss.some(s=>setsOf(e,s.x,null).some(q=>q.w));
+    const num=q=>isTime(e)||reps?q.r:q.w;
+    const pts=ss.map(s=>{const b=bestAll(e,s.x,it.bw);return b?{d:s.d,v:num(b),all:setsOf(e,s.x,it.bw).map(num),lab:setChip(e,b)}:null;}).filter(Boolean);
+    const lab=isTime(e)?"время по подходам":reps?"повторы по подходам":isBody(e)?"доп. вес по подходам, кг":e.unit==="кг в руке"?"вес гантели по подходам, кг":"вес по подходам, кг";
+    const ch=el("div","chart");box.append(el("span","eyebrow","Вся история · "+lab),ch,el("p","chart-note","Линия — лучший подход тренировки, точки — все рабочие подходы."));
     requestAnimationFrame(()=>drawChart(ch,pts));   /* draw once the card is on the page and has a width */
   }
   return box;
@@ -1206,7 +1205,7 @@ function niceTicks(lo,hi,n){
 }
 function drawChart(host,pts){
   const W=Math.max(260,Math.floor(host.clientWidth||300)),H=210,L=44,R=20,T=24,B=28;
-  const xs=pts.map(p=>parse(p.d).getTime()),vs=pts.map(p=>p.v);
+  const xs=pts.map(p=>parse(p.d).getTime()),vs=pts.reduce((a,p)=>a.concat([p.v],p.all||[]),[]);
   let x0=Math.min.apply(null,xs),x1=Math.max.apply(null,xs);if(x0===x1){x0-=3*864e5;x1+=3*864e5;}
   let lo=Math.min.apply(null,vs),hi=Math.max.apply(null,vs);if(lo===hi){lo-=2;hi+=2;}
   const ticks=niceTicks(lo,hi,4);lo=ticks[0];hi=ticks[ticks.length-1];
@@ -1221,11 +1220,12 @@ function drawChart(host,pts){
     mk("path",{d:"M"+P[0][0]+","+Y(lo)+" L"+P.map(q=>q[0]+","+q[1]).join(" L")+" L"+P[P.length-1][0]+","+Y(lo)+" Z"},"area");
     mk("path",{d:"M"+P.map(q=>q[0]+","+q[1]).join(" L")},"lineP");
   }
+  pts.forEach((p,i)=>(p.all||[]).forEach(v=>{if(v!==p.v)mk("circle",{cx:P[i][0],cy:Y(v),r:3},"ptSet");}));
   P.forEach((q,i)=>{if(i<P.length-1&&P.length<=40)mk("circle",{cx:q[0],cy:q[1],r:3.5},"pt");});
   const lp=P[P.length-1];mk("circle",{cx:lp[0],cy:lp[1],r:5.5},"ptLast");
   let ly=lp[1]-11;if(ly<T-6)ly=lp[1]+20;
   const anchor=lp[0]>W-R-24?"end":(lp[0]<L+24?"start":"middle");
-  mk("text",{x:lp[0]+(anchor==="end"?4:0),y:ly,"text-anchor":anchor},"endLab").textContent=fmt(pts[pts.length-1].v);
+  mk("text",{x:lp[0]+(anchor==="end"?4:0),y:ly,"text-anchor":anchor},"endLab").textContent=pts[pts.length-1].lab||fmt(pts[pts.length-1].v);
   mk("text",{x:pts.length>1?L:X(xs[0]),y:H-8,"text-anchor":pts.length>1?"start":"middle"},"axis").textContent=short(pts[0].d);
   if(pts.length>1)mk("text",{x:W-R,y:H-8,"text-anchor":"end"},"axis").textContent=short(pts[pts.length-1].d);
   host.textContent="";host.append(svg);

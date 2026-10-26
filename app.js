@@ -137,7 +137,9 @@ const MON_G=["января","февраля","марта","апреля","мая
 const MON_IN=["январе","феврале","марте","апреле","мае","июне","июле","августе","сентябре","октябре","ноябре","декабре"];
 const MON_S=["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
 const WD=["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
-const LS="tg-gym-log-v1",LSP="tg-gym-prog-v1",PKEY="program",KEY=d=>"w_"+d;
+const LS="tg-gym-log-v1",LSP="tg-gym-prog-v1",PKEY="program",RKEY="remind",KEY=d=>"w_"+d;
+/* the bot (Cloudflare Worker) that sends reminders; empty until it is deployed */
+const BOT_API="";
 
 const $=s=>document.querySelector(s);
 /* safe binding: an element missing from an older cached page must not break the whole app */
@@ -162,7 +164,7 @@ const tSuf=e=>e.unit==="минуты"?" мин":" с";
 const isBody=e=>e.unit==="свой вес + кг";
 const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
-const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",pm:null,pmOpen:null,
+const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:false,hour:8},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
   libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null};
 
@@ -393,6 +395,7 @@ function flushProg(){
 }
 function saveProg(){
   PROG.saved=true;S.progChanged=true;
+  if(S.remind.on){queueRemindSync();renderRemind();}
   setProgStatus("","Изменения…");
   clearTimeout(progTimer);progTimer=setTimeout(flushProg,700);
 }
@@ -510,9 +513,50 @@ function finishProgEditor(EX){
   $("#peAdd").textContent=full?"Достигнут лимит упражнений":"+ Добавить упражнение";
   $("#peAdd").disabled=full;
   renderTemplates();
+  renderRemind();
 }
 $("#peAdd").addEventListener("click",()=>openLib());
 on("#peEdit","click",()=>{S.peEdit=!S.peEdit;haptic("tap");renderProgEditor();});
+
+/* reminders from the bot on training days */
+const remindReady=()=>!!(BOT_API&&tg&&tg.initData);
+function remindDays(){const d={};PROG.workouts.forEach(w=>w.days.forEach(x=>{d[x]=w.name;}));return d;}
+function renderRemind(){
+  const card=$("#remindCard");if(!card)return;
+  card.hidden=!remindReady();if(card.hidden)return;
+  const sel=$("#remindHour");
+  if(!sel.options.length)for(let h=5;h<=22;h++){const o=el("option",null,pad(h)+":00");o.value=String(h);sel.append(o);}
+  sel.value=String(S.remind.hour);
+  $("#remindOn").checked=!!S.remind.on;
+  $("#remindTimeWrap").hidden=!S.remind.on;
+  const days=Object.keys(remindDays()).map(Number).sort();
+  $("#remindNote").textContent=S.remind.on?(days.length?"Напомню в "+days.map(d=>DAY_S[d]).join(", ")+" в "+pad(S.remind.hour)+":00.":"Отметь дни тренировок выше — тогда буду напоминать."):"В дни тренировок бот напишет тебе в Telegram.";
+}
+let remindT=null;
+function queueRemindSync(){clearTimeout(remindT);remindT=setTimeout(syncRemind,1500);}
+async function syncRemind(){
+  if(!remindReady())return false;
+  try{
+    const r=await fetch(BOT_API+"/sync",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({initData:tg.initData,on:!!S.remind.on,hour:S.remind.hour,tz:new Date().getTimezoneOffset(),days:remindDays()})});
+    return r.ok;
+  }catch(e){return false;}
+}
+async function saveRemind(){
+  renderRemind();
+  if(S.mode==="cloud")cs("setItem",RKEY,JSON.stringify(S.remind)).catch(()=>{});
+  const ok=await syncRemind();
+  if(!ok)toast("Шлёпа не ответил — проверь интернет и переключи ещё раз");
+}
+on("#remindOn","change",ev=>{
+  const want=ev.target.checked;
+  const apply=()=>{S.remind.on=want;haptic("tap");saveRemind().then(()=>{if(want)toast("Готово — напомню в дни тренировок");});};
+  if(want&&tg&&tg.requestWriteAccess&&tg.isVersionAtLeast&&tg.isVersionAtLeast("6.9")){
+    try{tg.requestWriteAccess(ok=>{if(ok)apply();else{ev.target.checked=false;toast("Без разрешения Шлёпа не сможет написать");}});return;}catch(e){}
+  }
+  apply();
+});
+on("#remindHour","change",ev=>{S.remind.hour=Number(ev.target.value)||8;saveRemind();});
 
 /* editing mode: drag by the handle, or use the arrows; delete needs a second tap */
 function moveEx(EX,from,to){
@@ -971,6 +1015,9 @@ setView(["log","prog","year"].indexOf(h)>=0?h:"log");
       const keys=allKeys.filter(k=>k.indexOf("w_")===0);
       if(allKeys.indexOf(PKEY)>=0){
         try{const pv=await cs("getItems",[PKEY]);if(pv&&pv[PKEY])setProg(cleanProg(JSON.parse(pv[PKEY])));}catch(e){}
+      }
+      if(allKeys.indexOf(RKEY)>=0){
+        try{const rv=await cs("getItems",[RKEY]);if(rv&&rv[RKEY])Object.assign(S.remind,JSON.parse(rv[RKEY]));}catch(e){}
       }
       const docs=new Map();
       for(let i=0;i<keys.length;i+=20){

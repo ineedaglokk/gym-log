@@ -104,7 +104,7 @@ function fromLib(x,W){
   return {id:id,lib:x.id,name:x.name,sets:x.sets||3,lo:x.lo||10,hi:Math.max(x.lo||10,x.hi||12),
     step:x.step!=null?x.step:2.5,start:other?other.start:0,unit:UNITS.indexOf(x.unit)>=0?x.unit:"кг"};
 }
-function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.editKey=null;}
+function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.editKey=null;S.peEdit=false;}
 
 /* ready-made splits for friends */
 const TEMPLATES=[
@@ -450,7 +450,11 @@ function renderProgEditor(){
   $("#wkDel").hidden=PROG.workouts.length<2;$("#wkDelConfirm").hidden=true;
   renderDays();
   const list=$("#peList");list.textContent="";
+  $("#peCount").textContent=EX.length?exWord(EX.length):"Упражнения";
+  const eb=$("#peEdit");eb.hidden=EX.length<1;eb.textContent=S.peEdit?"Готово":"Порядок и удаление";eb.classList.toggle("on",!!S.peEdit);
+  list.classList.toggle("editing",!!S.peEdit&&EX.length>0);
   if(!EX.length)list.append(el("div","empty","В «"+W.name+"» пока нет упражнений. Нажми кнопку ниже и выбери их в библиотеке."));
+  if(S.peEdit&&EX.length){renderEditList(W,list);finishProgEditor(EX);return;}
   EX.forEach((e,i)=>{
     const card=el("div","pc");
     const key=W.id+"/"+e.id,open=S.editKey===key;
@@ -497,12 +501,64 @@ function renderProgEditor(){
     }
   });
   if(S.editKey&&!EX.some(e=>W.id+"/"+e.id===S.editKey)&&stack.indexOf("exSheet")>=0){S.editKey=null;closeSheet();}
+  finishProgEditor(EX);
+}
+function finishProgEditor(EX){
   const full=EX.length>=MAX_EX||totalEx()>=MAX_TOTAL;
   $("#peAdd").textContent=full?"Достигнут лимит упражнений":"+ Добавить упражнение";
   $("#peAdd").disabled=full;
   renderTemplates();
 }
 $("#peAdd").addEventListener("click",()=>openLib());
+$("#peEdit").addEventListener("click",()=>{S.peEdit=!S.peEdit;haptic("tap");renderProgEditor();});
+
+/* editing mode: drag by the handle, or use the arrows; delete needs a second tap */
+function moveEx(EX,from,to){
+  if(to<0||to>=EX.length||from===to)return;
+  const [x]=EX.splice(from,1);EX.splice(to,0,x);haptic("tap");renderProgEditor();saveProg();
+}
+function renderEditList(W,list){
+  const EX=W.ex;
+  EX.forEach((e,i)=>{
+    const row=el("div","per");
+    const h=el("button","drag","⠿");h.type="button";h.setAttribute("aria-label","Перетащить: "+e.name);
+    h.addEventListener("pointerdown",ev=>dragRow(ev,row,i,EX,list));
+    const main=el("div","per-main");
+    main.append(el("h3",null,e.name),el("p","target",e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"")));
+    const up=el("button","mini","↑");up.type="button";up.disabled=i===0;up.setAttribute("aria-label","Выше");up.addEventListener("click",()=>moveEx(EX,i,i-1));
+    const dn=el("button","mini","↓");dn.type="button";dn.disabled=i===EX.length-1;dn.setAttribute("aria-label","Ниже");dn.addEventListener("click",()=>moveEx(EX,i,i+1));
+    const del=el("button","del","✕");del.type="button";del.setAttribute("aria-label","Убрать: "+e.name);
+    let armT=null;
+    del.addEventListener("click",()=>{
+      if(!del.classList.contains("arm")){del.classList.add("arm");del.textContent="Убрать";armT=setTimeout(()=>{del.classList.remove("arm");del.textContent="✕";},3000);return;}
+      clearTimeout(armT);EX.splice(i,1);haptic("hit");renderProgEditor();saveProg();toast("«"+e.name+"» убрано, записи по нему остались");
+    });
+    row.append(h,thumb(e),main,up,dn,del);
+    list.append(row);
+  });
+}
+function dragRow(ev,row,from,EX,list){
+  if(ev.button>0)return;
+  ev.preventDefault();
+  const rows=[...list.children],r0=row.getBoundingClientRect(),gap=8,step=r0.height+gap;
+  const mids=rows.map(r=>{const b=r.getBoundingClientRect();return b.top+b.height/2;});
+  const y0=ev.clientY;let to=from;
+  row.classList.add("dragging");
+  try{ev.target.setPointerCapture(ev.pointerId);}catch(e){}
+  const move=e=>{
+    const dy=e.clientY-y0,c=mids[from]+dy;
+    row.style.transform="translateY("+dy+"px)";
+    to=from;
+    mids.forEach((m,k)=>{if(k<from&&c<m)to=Math.min(to,k);if(k>from&&c>m)to=Math.max(to,k);});
+    rows.forEach((r,k)=>{if(r===row)return;const s=(k>from&&k<=to)?-step:((k<from&&k>=to)?step:0);r.style.transform=s?"translateY("+s+"px)":"";});
+  };
+  const end=()=>{
+    ev.target.removeEventListener("pointermove",move);ev.target.removeEventListener("pointerup",end);ev.target.removeEventListener("pointercancel",end);
+    rows.forEach(r=>{r.style.transform="";});row.classList.remove("dragging");
+    if(to!==from)moveEx(EX,from,to);
+  };
+  ev.target.addEventListener("pointermove",move);ev.target.addEventListener("pointerup",end);ev.target.addEventListener("pointercancel",end);
+}
 $("#wkName").addEventListener("input",ev=>{PW().name=ev.target.value.slice(0,30);renderWkTabs();saveProg();});
 $("#wkName").addEventListener("change",ev=>{if(!ev.target.value.trim()){PW().name="Тренировка";ev.target.value=PW().name;renderWkTabs();saveProg();}});
 $("#wkDel").addEventListener("click",()=>{$("#wkDelMsg").textContent="Удалить «"+PW().name+"»? Записи тренировок останутся.";$("#wkDel").hidden=true;$("#wkDelConfirm").hidden=false;});

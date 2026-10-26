@@ -353,6 +353,18 @@ function deltaText(e,j){
   if(j.b.r!==j.a.r)parts.push(signed(j.b.r-j.a.r)+" повт.");
   return parts.join(", ")||"=";
 }
+/* The rep target for a set. Planned weight → the program's range. Weight changed by hand → the
+   range moves the same way the comparison works (one rep ≈ 3% of the weight): 60 kg × 8–12 planned,
+   65 kg on the bar → about 5–9. Bodyweight moves count the body weight in. */
+function repTarget(e,planned,w){
+  if(isTime(e)||planned==null||w==null||w===planned)return {lo:e.lo,hi:e.hi,adj:false};
+  const base=isBody(e)?(numv($("#bwInput").value)||bwOn(S.date)||REF_BW):0;
+  const P=base+planned,W=base+w;
+  if(P<=0||W<=0)return {lo:e.lo,hi:e.hi,adj:false};
+  const f=r=>Math.max(1,Math.round(30*((1+r/30)*P/W-1)));
+  const lo=f(e.lo);
+  return {lo:lo,hi:Math.max(lo,f(e.hi)),adj:true};
+}
 /* a later set clearly better than the first one: the start was too easy.
    Heavier later and still in the rep range → start the working sets there (same rule the log uses
    to raise the start weight). Same weight but 2+ more reps (or 15% more time) → there was reserve. */
@@ -506,18 +518,36 @@ function renderLog(){
       grid.append(el("span","wusep"));
     }
     grid.append(el("span","lab",isTime(e)?(e.unit==="минуты"?"мин":"сек"):"повт."));
+    const rins=[],wins=[];
+    const adjNote=el("p","adjnote");adjNote.hidden=true;
+    /* colours: green — target made, bright green — top of the range (more weight next time), red — short */
+    const paint=(k,typed)=>{
+      const r=rins[k],w=wins[k];
+      const t=repTarget(e,sg[k].w,w?numv(w.value):null);
+      r.placeholder=String(t.hi);
+      const x=intv(r.value),was=r.classList.contains("top");
+      r.classList.remove("ok","top","miss");
+      if(x!=null)r.classList.add(x>=t.hi?"top":x>=t.lo?"ok":"miss");
+      if(typed&&!was&&x!=null&&x>=t.hi)haptic("hit");
+      return t;
+    };
+    const paintAll=()=>{
+      const adj={};
+      for(let k=0;k<e.sets;k++){const t=paint(k);if(t.adj&&wins[k])adj[wins[k].value]=t;}
+      const keys=Object.keys(adj);
+      adjNote.hidden=!keys.length;
+      adjNote.textContent=keys.length?"Вес изменён — цель пересчитана: "+keys.slice(0,3).map(v=>(isBody(e)?"+":"")+v+" кг → "+(adj[v].lo===adj[v].hi?adj[v].hi:adj[v].lo+"–"+adj[v].hi)+" повт.").join(" · "):"";
+    };
     for(let k=0;k<e.sets;k++){
       const r=el("input","num");r.id="r-"+e.id+"-"+k;r.inputMode="numeric";r.autocomplete="off";
       r.placeholder=String(e.hi);r.setAttribute("aria-label",e.name+": "+(isTime(e)?e.unit:"повторы")+", подход "+(k+1));
       const v=cur?cur.r[k]:null;r.value=v==null?"":String(v);
-      r.classList.toggle("hit",v!=null&&v>=e.hi);
-      r.addEventListener("input",()=>{const x=intv(r.value);const was=r.classList.contains("hit");r.classList.toggle("hit",x!=null&&x>=e.hi);if(!was&&x!=null&&x>=e.hi)haptic("hit");});
-      grid.append(r);
+      r.addEventListener("input",()=>paint(k,true));
+      rins.push(r);grid.append(r);
     }
     pad0(e.sets);
     if(!isTime(e)){
       grid.append(el("span","lab",isBody(e)?"+кг":"кг"));
-      const wins=[];
       for(let k=0;k<e.sets;k++){
         const w=el("input","num wt");w.id="w-"+e.id+"-"+k;w.inputMode="decimal";w.autocomplete="off";
         w.setAttribute("aria-label",e.name+": вес, подход "+(k+1));
@@ -527,12 +557,14 @@ function renderLog(){
         w.addEventListener("input",()=>{
           w.dataset.edited="1";w.classList.remove("bump");
           for(let j=k+1;j<e.sets;j++){if(!wins[j].dataset.edited){wins[j].value=w.value;wins[j].classList.remove("bump");}}
+          paintAll();
         });
         wins.push(w);grid.append(w);
       }
       pad0(e.sets);
     }
-    li.append(grid);
+    li.append(grid,adjNote);
+    paintAll();
     if(canWu){
       const row=el("div","wurow");
       const add=el("button","wubtn","+ разминка");add.type="button";add.disabled=nWu>=4;
@@ -1283,6 +1315,19 @@ function onData(){
   refreshOthers();
   if(S.view==="prog")renderProgEditor();
 }
+
+/* ================= keyboard =================
+   iOS keeps the keyboard open until another field or tab is tapped. A tap anywhere outside a field
+   closes it (a scroll does not). */
+(function(){
+  const field=n=>n&&n.closest&&n.closest("input,textarea,select,[contenteditable]");
+  const hide=()=>{const a=document.activeElement;if(a&&field(a))a.blur();try{if(tg&&tg.hideKeyboard)tg.hideKeyboard();}catch(e){}};
+  let sx=0,sy=0,moved=false;
+  document.addEventListener("touchstart",ev=>{const t=ev.touches[0];sx=t.clientX;sy=t.clientY;moved=false;},{passive:true});
+  document.addEventListener("touchmove",ev=>{const t=ev.touches[0];if(Math.abs(t.clientX-sx)>10||Math.abs(t.clientY-sy)>10)moved=true;},{passive:true});
+  document.addEventListener("touchend",ev=>{if(moved||field(ev.target))return;if(field(document.activeElement))hide();});
+  document.addEventListener("mousedown",ev=>{if(!field(ev.target)&&field(document.activeElement))hide();});
+})();
 
 /* ================= boot ================= */
 function applyTheme(){

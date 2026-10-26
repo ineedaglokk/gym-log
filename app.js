@@ -168,7 +168,7 @@ const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
-  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null};
+  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null,wuN:{}};
 
 /* ================= storage ================= */
 const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
@@ -211,12 +211,20 @@ function persist(date,body){
 
 /* ================= records ================= */
 /* Old records kept one weight per exercise; newer ones keep a weight per set. */
+/* Warm-up sets live in x.wu = {w:[…], r:[…]}; x.w / x.r are the working sets. */
 function norm(x,n){
   if(!x)return null;
   const r=Array.isArray(x.r)?x.r:[];
   const len=Math.max(n||0,r.length,Array.isArray(x.w)?x.w.length:0,1);
   const w=Array.isArray(x.w)?x.w:seq(len).map(()=>x.w);
-  return {w:seq(len).map(i=>w[i]==null?null:w[i]),r:seq(len).map(i=>r[i]==null?null:r[i])};
+  return {w:seq(len).map(i=>w[i]==null?null:w[i]),r:seq(len).map(i=>r[i]==null?null:r[i]),wu:normWu(x.wu)};
+}
+function normWu(u){
+  if(!u||!Array.isArray(u.r))return null;
+  const w=Array.isArray(u.w)?u.w:[];
+  const out={w:[],r:[]};
+  u.r.forEach((r,i)=>{if(r!=null){out.r.push(r);out.w.push(w[i]==null?null:w[i]);}});
+  return out.r.length?out:null;
 }
 function prevEntry(id,date,n){
   let best=null;
@@ -278,6 +286,10 @@ function setsOf(e,x,bw){
   });
   return out;
 }
+/* warm-ups count only if one of them beats the working sets — then it was not really a warm-up.
+   They never count as volume and never as "the first set" for the slow-start tip. */
+const warmOf=(e,x,bw)=>x&&x.wu?setsOf(e,x.wu,bw).map(s=>Object.assign(s,{wu:true})):[];
+const bestAll=(e,x,bw)=>bestOf(e,setsOf(e,x,bw).concat(warmOf(e,x,bw)));
 const setScore=(e,s)=>isTime(e)?s.r:e1rm(s.load!=null?s.load:(s.w||0)+REF_BW,s.r);
 function bestOf(e,ss){let b=null;ss.forEach(s=>{if(!b||setScore(e,s)>setScore(e,b)+1e-9)b=s;});return b;}
 /* 1: b is stronger than a, -1: weaker, 0: the same (or impossible to tell) */
@@ -291,9 +303,8 @@ function cmpSets(e,a,b){
 }
 function workOf(e,ss){return ss.reduce((t,s)=>t+(isTime(e)?s.r:(s.load!=null?s.load:(s.w||0)+REF_BW)*s.r),0);}
 function setText(e,s){
-  if(isTime(e))return s.r+(e.unit==="минуты"?" мин":" с");
-  if(isBody(e))return s.w?"+"+fmt(s.w)+" кг × "+s.r:s.r+" повт.";
-  return fmt(s.w)+" кг × "+s.r;
+  const t=isTime(e)?s.r+(e.unit==="минуты"?" мин":" с"):isBody(e)?(s.w?"+"+fmt(s.w)+" кг × "+s.r:s.r+" повт."):fmt(s.w)+" кг × "+s.r;
+  return s.wu?t+" (разминка)":t;
 }
 function setChip(e,s){
   if(isTime(e))return s.r+(e.unit==="минуты"?" мин":" с");
@@ -311,7 +322,7 @@ function allSetsText(e,ss){
 function judge(e,xa,xb,bw){
   const A=setsOf(e,xa,bw),B=setsOf(e,xb,bw);
   if(!A.length||!B.length)return null;
-  const a=bestOf(e,A),b=bestOf(e,B);
+  const a=bestOf(e,A.concat(warmOf(e,xa,bw))),b=bestOf(e,B.concat(warmOf(e,xb,bw)));
   let v=cmpSets(e,a,b),why="best";
   if(v===0&&workOf(e,B)>workOf(e,A)*(1+NOISE)){v=1;why="work";}
   const res={v:v,why:why,a:a,b:b,A:A,B:B};
@@ -432,9 +443,39 @@ function renderLog(){
     li.append(head);
     const goal=(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"");
     const ramp=sg.filter(x=>x.ramp).reduce((m,x)=>Math.max(m,x.w),-1);
-    li.append(el("p","meta",prev?"прошлый раз "+setsText(prev,e)+(ramp>=0?" · начни сразу с "+(isBody(e)?"+":"")+fmt(ramp)+" кг":""):"цель "+goal+(isTime(e)?"":" повт.")));
+    const prevWuText=prev&&prev.wu?"разминка "+setsText(prev.wu,e).replace(/ · /g,", ")+" → ":"";
+    li.append(el("p","meta",prev?"прошлый раз "+prevWuText+setsText(prev,e)+(ramp>=0?" · начни сразу с "+(isBody(e)?"+":"")+fmt(ramp)+" кг":""):"цель "+goal+(isTime(e)?"":" повт.")));
 
-    const grid=el("div","sets");grid.style.gridTemplateColumns="auto repeat("+e.sets+",minmax(0,1fr))";
+    /* warm-ups: as many as last time (or as saved today), weights taken from last time */
+    const wkey=S.date+"|"+e.id,canWu=!isTime(e);
+    const curWu=cur&&cur.wu,prevWu=prev&&prev.wu;
+    const nWu=!canWu?0:(S.wuN[wkey]!=null?S.wuN[wkey]:Math.max(curWu?curWu.r.length:0,prevWu?prevWu.r.length:0));
+    const cols=Math.max(e.sets,nWu);
+    const grid=el("div","sets");grid.style.gridTemplateColumns="auto repeat("+cols+",minmax(0,1fr))";
+    const pad0=n=>{for(let k=n;k<cols;k++)grid.append(el("span"));};
+    if(nWu){
+      const firstW=cur&&cur.w[0]!=null?cur.w[0]:sg[0].w;
+      const guess=k=>{if(!firstW)return null;const v=firstW*[0.5,0.7,0.85,0.9][k];return Math.round(v/(v>=20?2.5:1))*(v>=20?2.5:1);};
+      grid.append(el("span","lab wu","разм."));
+      for(let k=0;k<nWu;k++){
+        const r=el("input","num wu");r.id="u-"+e.id+"-"+k;r.inputMode="numeric";r.autocomplete="off";
+        r.setAttribute("aria-label",e.name+": разминка "+(k+1)+", повторы");
+        const v=curWu&&curWu.r[k]!=null?curWu.r[k]:null;r.value=v==null?"":String(v);
+        r.placeholder=prevWu&&prevWu.r[k]!=null?String(prevWu.r[k]):"";
+        grid.append(r);
+      }
+      pad0(nWu);
+      grid.append(el("span","lab wu",isBody(e)?"+кг":"кг"));
+      for(let k=0;k<nWu;k++){
+        const w=el("input","num wt wu");w.id="v-"+e.id+"-"+k;w.inputMode="decimal";w.autocomplete="off";
+        w.setAttribute("aria-label",e.name+": разминка "+(k+1)+", вес");
+        const v=curWu&&curWu.r[k]!=null?curWu.w[k]:(prevWu&&prevWu.w[k]!=null?prevWu.w[k]:guess(k));
+        w.value=v==null?"":fmt(v);
+        grid.append(w);
+      }
+      pad0(nWu);
+      grid.append(el("span","wusep"));
+    }
     grid.append(el("span","lab",isTime(e)?(e.unit==="минуты"?"мин":"сек"):"повт."));
     for(let k=0;k<e.sets;k++){
       const r=el("input","num");r.id="r-"+e.id+"-"+k;r.inputMode="numeric";r.autocomplete="off";
@@ -444,6 +485,7 @@ function renderLog(){
       r.addEventListener("input",()=>{const x=intv(r.value);const was=r.classList.contains("hit");r.classList.toggle("hit",x!=null&&x>=e.hi);if(!was&&x!=null&&x>=e.hi)haptic("hit");});
       grid.append(r);
     }
+    pad0(e.sets);
     if(!isTime(e)){
       grid.append(el("span","lab",isBody(e)?"+кг":"кг"));
       const wins=[];
@@ -459,8 +501,24 @@ function renderLog(){
         });
         wins.push(w);grid.append(w);
       }
+      pad0(e.sets);
     }
-    li.append(grid);list.append(li);
+    li.append(grid);
+    if(canWu){
+      const row=el("div","wurow");
+      const add=el("button","wubtn","+ разминка");add.type="button";add.disabled=nWu>=4;
+      add.setAttribute("aria-label","Добавить разминочный подход: "+e.name);
+      add.addEventListener("click",()=>{flush();S.wuN[wkey]=Math.min(4,nWu+1);haptic("tap");renderLog();const n=$("#u-"+e.id+"-"+nWu);if(n)n.focus();});
+      row.append(add);
+      if(nWu){
+        const del=el("button","wubtn quiet","− убрать");del.type="button";
+        del.setAttribute("aria-label","Убрать последний разминочный подход: "+e.name);
+        del.addEventListener("click",()=>{flush();S.wuN[wkey]=nWu-1;haptic("tap");renderLog();onEdit();});
+        row.append(del);
+      }
+      li.append(row);
+    }
+    list.append(li);
   });
 }
 function collect(){
@@ -469,7 +527,9 @@ function collect(){
   EX.forEach(e=>{
     const r=seq(e.sets).map(k=>{const n=$("#r-"+e.id+"-"+k);return n?intv(n.value):null;});
     const w=seq(e.sets).map(k=>{const n=$("#w-"+e.id+"-"+k);return n?numv(n.value):null;});
-    if(r.some(v=>v!=null)){ex[e.id]={w:w,r:r};any=true;}
+    const uw=[],ur=[];
+    for(let k=0;k<4;k++){const rn=$("#u-"+e.id+"-"+k);if(!rn)break;const rv=intv(rn.value);if(rv==null)continue;const wn=$("#v-"+e.id+"-"+k);ur.push(rv);uw.push(wn?numv(wn.value):null);}
+    if(r.some(v=>v!=null)||ur.length){ex[e.id]={w:w,r:r};if(ur.length)ex[e.id].wu={w:uw,r:ur};any=true;}
   });
   const old=S.docs.get(S.date);
   if(old&&old.ex)Object.keys(old.ex).forEach(id=>{if(!EX.some(e=>e.id===id)&&hasSets(old.ex[id])){ex[id]=old.ex[id];any=true;}});
@@ -735,7 +795,7 @@ function workoutReport(date){
     const it={n:e.name,d:short(prev.d),now:j.now,was:j.was};
     if(j.v>0){
       /* a record: stronger than every earlier workout, and there were a few of them */
-      const past=[...S.docs.keys()].filter(d=>d<date).map(d=>{const x=S.docs.get(d).ex;return x&&hasSets(x[id])?bestOf(e,setsOf(e,norm(x[id]),bw)):null;}).filter(Boolean);
+      const past=[...S.docs.keys()].filter(d=>d<date).map(d=>{const x=S.docs.get(d).ex;return x&&hasSets(x[id])?bestAll(e,norm(x[id]),bw):null;}).filter(Boolean);
       it.r=j.why==="best"&&past.length>=2&&past.every(p=>cmpSets(e,p,j.b)>0);
       up.push(it);
     }else if(j.v<0)down.push(it);
@@ -1065,7 +1125,7 @@ function monthSummary(ym){
     const ss=sessionsOf(id,days);
     if(ss.length<2)return;
     const bw=bwOn(ss[ss.length-1].d);
-    const pts=ss.map(s=>({d:s.d,x:s.x,best:bestOf(e,setsOf(e,s.x,bw))})).filter(p=>p.best);
+    const pts=ss.map(s=>({d:s.d,x:s.x,best:bestAll(e,s.x,bw)})).filter(p=>p.best);
     if(pts.length<2)return;
     const first=pts[0],prev=pts[pts.length-2],last=pts[pts.length-1];
     const jd=judge(e,prev.x,last.x,bw),ju=judge(e,first.x,last.x,bw);
@@ -1100,7 +1160,7 @@ function progItem(it){
     const all=[...S.docs.keys()].sort(),ss=sessionsOf(it.id,all),e=it.e;
     const noBw=!isTime(e)&&isBody(e)&&it.bw==null,extra=noBw&&ss.some(s=>setsOf(e,s.x,null).some(q=>q.w));
     const val=b=>isTime(e)||(noBw&&!extra)?b.r:noBw?b.w:Math.round(e1rm(b.load,b.r)*10)/10;
-    const pts=ss.map(s=>{const b=bestOf(e,setsOf(e,s.x,it.bw));return b?{d:s.d,v:val(b)}:null;}).filter(Boolean);
+    const pts=ss.map(s=>{const b=bestAll(e,s.x,it.bw);return b?{d:s.d,v:val(b)}:null;}).filter(Boolean);
     const lab=isTime(e)?"лучшее время":noBw?(extra?"доп. вес в лучшем подходе, кг":"повторы в лучшем подходе"):"сила — примерный максимум на 1 раз, кг";
     const ch=el("div","chart");box.append(el("span","eyebrow","Вся история · "+lab),ch);
     requestAnimationFrame(()=>drawChart(ch,pts));   /* draw once the card is on the page and has a width */

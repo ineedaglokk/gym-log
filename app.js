@@ -168,7 +168,7 @@ const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
-  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null,wuN:{},noteOpen:{}};
+  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null,wuN:{},noteOpen:{},lvl:{}};
 
 /* ================= storage ================= */
 const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
@@ -248,23 +248,32 @@ function prevEntry(id,date,n){
   }
   return best;
 }
-/* Each set progresses on its own: hit the top of the rep range last time, that set gets +step.
-   And if a later set last time was heavier and still made the target reps, the earlier sets were
-   too light: they start from that weight now (warm-ups are not logged as sets). */
+/* The weight never goes up on its own: next time starts from last time's weights, set by set.
+   Going heavier is the lifter's call, offered as one tap (see levelUp). */
 function suggestSets(e,prev){
-  if(!prev)return seq(e.sets).map(()=>({w:e.start,up:false}));
+  if(!prev)return seq(e.sets).map(()=>({w:e.start}));
   const base=prev.w.find(v=>v!=null);
   let lastW=base!=null?base:e.start;
-  const heavierLater=i=>{let m=null;for(let j=i+1;j<prev.r.length;j++){if(prev.r[j]!=null&&prev.w[j]!=null&&prev.r[j]>=e.lo&&(m==null||prev.w[j]>m))m=prev.w[j];}return m;};
-  return seq(e.sets).map(i=>{
-    const w=prev.w[i]!=null?prev.w[i]:lastW;lastW=w;
-    const up=!isTime(e)&&e.step>0&&prev.r[i]!=null&&prev.r[i]>=e.hi;
-    let nw=up?Math.round((w+e.step)*100)/100:w;
-    const h=isTime(e)?null:heavierLater(i);
-    if(h!=null&&h>nw)return {w:h,up:true,ramp:true};
-    return {w:nw,up:up};
-  });
+  return seq(e.sets).map(i=>{const w=prev.w[i]!=null?prev.w[i]:lastW;lastW=w;return {w:w};});
 }
+/* What the log may offer from a workout x of this exercise:
+   - "up": every planned set at one weight and every one at the top of the range → «Прокачать» (+step);
+   - "start": the weight was raised by hand during the workout and a heavier later set still made
+     the range → «Все подходы по N кг».
+   Nothing else; time-based exercises never get it. */
+function levelUp(e,x){
+  if(!x||isTime(e))return null;
+  const ss=[];
+  x.r.forEach((r,i)=>{if(r==null)return;const w=x.w[i]!=null?x.w[i]:(isBody(e)?0:null);if(w!=null)ss.push({w:w,r:r});});
+  if(!ss.length)return null;
+  const first=ss[0];
+  let h=null;
+  ss.slice(1).forEach(q=>{if(q.w>first.w&&q.r>=e.lo&&(!h||q.w>h.w))h=q;});
+  if(h)return {kind:"start",from:first.w,to:h.w};
+  if(e.step>0&&ss.length>=e.sets&&ss.every(q=>q.w===first.w&&q.r>=e.hi))return {kind:"up",from:first.w,to:Math.round((first.w+e.step)*100)/100};
+  return null;
+}
+const wtText=(e,v)=>(isBody(e)?"+":"")+fmt(v)+" кг";
 function setsText(x,e){
   const u=e?e.unit:"кг";
   return x.r.map((r,i)=>{
@@ -375,8 +384,8 @@ function rampTip(e,x,bw){
   if(!isTime(e)){
     let h=null;
     rest.forEach(s=>{if(s.w>first.w&&s.r>=e.lo&&(!h||s.w>h.w||(s.w===h.w&&s.r>h.r)))h=s;});
-    if(h)return which(h)+" ("+setText(e,h)+") тяжелее первого ("+setText(e,first)+"), и повторов хватило — значит, начало было слишком лёгким. "+
-      "В следующий раз начинай рабочие подходы сразу с "+(isBody(e)?"+":"")+fmt(h.w)+" кг (разминка не в счёт)";
+    if(h)return which(h)+" ("+setText(e,h)+") тяжелее первого ("+setText(e,first)+"), и повторов хватило — "+
+      "в следующий раз можно начать рабочие подходы сразу с "+wtText(e,h.w)+": кнопка «Все подходы по "+wtText(e,h.w)+"»";
   }
   let m=null;
   rest.forEach(s=>{
@@ -483,9 +492,17 @@ function renderLog(){
     nb.addEventListener("click",()=>{const o=nbox.hidden;nbox.hidden=!o;S.noteOpen[e.id]=o;nb.setAttribute("aria-expanded",String(o));haptic("tap");if(o&&!pn)ta.focus();});
     li.append(nbox);
     const goal=(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"");
-    const ramp=sg.filter(x=>x.ramp).reduce((m,x)=>Math.max(m,x.w),-1);
     const prevWuText=prev&&prev.wu?"разминка "+setsText(prev.wu,e).replace(/ · /g,", ")+" → ":"";
-    li.append(el("p","meta",prev?"прошлый раз "+prevWuText+setsText(prev,e)+(ramp>=0?" · начни сразу с "+(isBody(e)?"+":"")+fmt(ramp)+" кг":""):"цель "+goal+(isTime(e)?"":" повт.")));
+    const lv=levelUp(e,prev),lkey=S.date+"|"+e.id;
+    const lvText=!lv?"":lv.kind==="up"?" — все по верху цели 🔥":" — можешь сразу начать с "+wtText(e,lv.to);
+    li.append(el("p","meta",prev?"прошлый раз "+prevWuText+setsText(prev,e)+lvText:"цель "+goal+(isTime(e)?"":" повт.")));
+    /* «Прокачать»: pressed — or already logged at the new weight */
+    let applied=false;
+    if(lv){
+      if(S.lvl[lkey]!=null)applied=S.lvl[lkey];
+      else if(cur){const ws=cur.w.slice(0,e.sets).filter(v=>v!=null);applied=ws.length>0&&ws.every(v=>v===lv.to);}
+    }
+    const plan=k=>applied?lv.to:sg[k].w;
 
     /* warm-ups: as many as last time (or as saved today), weights taken from last time */
     const wkey=S.date+"|"+e.id,canWu=!isTime(e);
@@ -495,7 +512,7 @@ function renderLog(){
     const grid=el("div","sets");grid.style.gridTemplateColumns="auto repeat("+cols+",minmax(0,1fr))";
     const pad0=n=>{for(let k=n;k<cols;k++)grid.append(el("span"));};
     if(nWu){
-      const firstW=cur&&cur.w[0]!=null?cur.w[0]:sg[0].w;
+      const firstW=cur&&cur.w[0]!=null?cur.w[0]:plan(0);
       const guess=k=>{if(!firstW)return null;const v=firstW*[0.5,0.7,0.85,0.9][k];return Math.round(v/(v>=20?2.5:1))*(v>=20?2.5:1);};
       grid.append(el("span","lab wu","разм."));
       for(let k=0;k<nWu;k++){
@@ -520,10 +537,12 @@ function renderLog(){
     grid.append(el("span","lab",isTime(e)?(e.unit==="минуты"?"мин":"сек"):"повт."));
     const rins=[],wins=[];
     const adjNote=el("p","adjnote");adjNote.hidden=true;
+    const lvlNote=el("p","lvlnote");lvlNote.hidden=true;
     /* colours: green — target made, bright green — top of the range (more weight next time), red — short */
     const paint=(k,typed)=>{
       const r=rins[k],w=wins[k];
-      const t=repTarget(e,sg[k].w,w?numv(w.value):null);
+      const cw=w?numv(w.value):null;
+      const t=repTarget(e,applied&&cw===sg[k].w?sg[k].w:plan(k),cw);   /* went back to the old weight: the old range */
       r.placeholder=String(t.hi);
       const x=intv(r.value),was=r.classList.contains("top");
       r.classList.remove("ok","top","miss");
@@ -531,9 +550,16 @@ function renderLog(){
       if(typed&&!was&&x!=null&&x>=t.hi)haptic("hit");
       return t;
     };
+    /* every set at one weight at the top of the range today → next time it can be levelled up */
+    const updLvl=()=>{
+      const today=levelUp(e,{w:wins.map(x=>numv(x.value)),r:rins.map(x=>intv(x.value))});
+      lvlNote.hidden=!(today&&today.kind==="up");
+      if(!lvlNote.hidden)lvlNote.textContent="🔓 Все подходы по верху цели — в следующий раз можно прокачать до "+wtText(e,today.to);
+    };
     const paintAll=()=>{
       const adj={};
       for(let k=0;k<e.sets;k++){const t=paint(k);if(t.adj&&wins[k])adj[wins[k].value]=t;}
+      updLvl();
       const keys=Object.keys(adj);
       adjNote.hidden=!keys.length;
       adjNote.textContent=keys.length?"Вес изменён — цель пересчитана: "+keys.slice(0,3).map(v=>(isBody(e)?"+":"")+v+" кг → "+(adj[v].lo===adj[v].hi?adj[v].hi:adj[v].lo+"–"+adj[v].hi)+" повт.").join(" · "):"";
@@ -542,7 +568,7 @@ function renderLog(){
       const r=el("input","num");r.id="r-"+e.id+"-"+k;r.inputMode="numeric";r.autocomplete="off";
       r.placeholder=String(e.hi);r.setAttribute("aria-label",e.name+": "+(isTime(e)?e.unit:"повторы")+", подход "+(k+1));
       const v=cur?cur.r[k]:null;r.value=v==null?"":String(v);
-      r.addEventListener("input",()=>paint(k,true));
+      r.addEventListener("input",()=>{paint(k,true);updLvl();});
       rins.push(r);grid.append(r);
     }
     pad0(e.sets);
@@ -552,8 +578,9 @@ function renderLog(){
         const w=el("input","num wt");w.id="w-"+e.id+"-"+k;w.inputMode="decimal";w.autocomplete="off";
         w.setAttribute("aria-label",e.name+": вес, подход "+(k+1));
         const saved=cur?cur.w[k]:null;
-        w.value=fmt(saved!=null?saved:sg[k].w);
-        if(saved!=null||cur)w.dataset.edited="1";else if(sg[k].up)w.classList.add("bump");
+        w.value=fmt(saved!=null?saved:plan(k));
+        if(saved!=null||cur)w.dataset.edited="1";
+        if(applied&&(saved==null||saved===lv.to))w.classList.add("bump");
         w.addEventListener("input",()=>{
           w.dataset.edited="1";w.classList.remove("bump");
           for(let j=k+1;j<e.sets;j++){if(!wins[j].dataset.edited){wins[j].value=w.value;wins[j].classList.remove("bump");}}
@@ -563,7 +590,27 @@ function renderLog(){
       }
       pad0(e.sets);
     }
-    li.append(grid,adjNote);
+    if(lv){
+      /* the lifter decides: one tap moves every set not done yet to the new weight, a second tap undoes it */
+      const lb=el("button","lvlbtn");lb.type="button";
+      const label=()=>{
+        lb.textContent=applied?"✓ "+(lv.kind==="up"?"Прокачано до ":"Все подходы по ")+wtText(e,lv.to)+" · вернуть":
+          (lv.kind==="up"?"⬆ Прокачать до ":"Все подходы по ")+wtText(e,lv.to);
+        lb.classList.toggle("on",applied);
+      };
+      label();
+      lb.addEventListener("click",()=>{
+        applied=!applied;S.lvl[lkey]=applied;haptic(applied?"hit":"tap");
+        for(let k=0;k<e.sets;k++){
+          if(intv(rins[k].value)!=null)continue;   /* sets already done keep their weight */
+          wins[k].value=fmt(applied?lv.to:sg[k].w);wins[k].dataset.edited="1";wins[k].classList.toggle("bump",applied);
+        }
+        label();paintAll();
+        if(S.docs.has(S.date))onEdit();
+      });
+      li.append(lb);
+    }
+    li.append(grid,adjNote,lvlNote);
     paintAll();
     if(canWu){
       const row=el("div","wurow");
@@ -851,6 +898,8 @@ function workoutReport(date){
     n++;
     const cur=norm(raw);
     const tip=rampTip(e,cur,bw);if(tip)tips.push({n:e.name,t:tip});
+    const lu=levelUp(e,cur);
+    if(lu&&lu.kind==="up")tips.push({n:e.name,t:"все подходы по верху цели на "+wtText(e,lu.from)+" — в следующий раз можно нажать «Прокачать» и взять "+wtText(e,lu.to)});
     const prev=prevEntry(id,date);if(!prev)return;
     const j=judge(e,prev,cur,bw);if(!j)return;
     c++;

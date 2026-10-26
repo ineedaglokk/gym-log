@@ -138,7 +138,7 @@ const MON_IN=["январе","феврале","марте","апреле","ма�
 const MON_S=["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
 const WD=["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
 const LS="tg-gym-log-v1",LSP="tg-gym-prog-v1",PKEY="program",RKEY="remind",KEY=d=>"w_"+d;
-/* the bot (Cloudflare Worker) that sends reminders; empty until it is deployed */
+/* the bot (Cloudflare Worker) that sends reminders and the after-workout report; empty to switch it off */
 const BOT_API="https://shlepa-bot.iwbbtbtb.workers.dev";
 
 const $=s=>document.querySelector(s);
@@ -164,7 +164,7 @@ const tSuf=e=>e.unit==="минуты"?" мин":" с";
 const isBody=e=>e.unit==="свой вес + кг";
 const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
-const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:false,hour:8},pm:null,pmOpen:null,
+const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,hour:8,v:2},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
   libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null};
 
@@ -200,6 +200,7 @@ function persist(date,body){
   if(body)S.docs.set(date,body);else S.docs.delete(date);
   lsWrite(LS,Object.fromEntries(S.docs));
   refreshOthers();
+  if(date===today())queueReport();
   setStatus("","Сохраняю…");
   S.chain=S.chain.then(()=>body?cs("setItem",KEY(date),JSON.stringify(body)):cs("removeItem",KEY(date)))
     .then(()=>setStatus("ok","Сохранено в Telegram"))
@@ -365,7 +366,7 @@ function flush(){
 function onEdit(){S.touched=true;setStatus("","Изменения…");clearTimeout(S.timer);S.timer=setTimeout(flush,900);}
 $("#exList").addEventListener("input",onEdit);
 $("#bwInput").addEventListener("input",onEdit);
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){flush();flushProg();}});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){flush();flushProg();if(repT)sendReport(true);}});
 
 function goDate(d){flush();S.date=d>today()?today():d;S.logW=null;renderLog();window.scrollTo({top:0});}
 $("#prevDay").addEventListener("click",()=>goDate(addDays(S.date,-1)));
@@ -518,7 +519,8 @@ function finishProgEditor(EX){
 $("#peAdd").addEventListener("click",()=>openLib());
 on("#peEdit","click",()=>{S.peEdit=!S.peEdit;haptic("tap");renderProgEditor();});
 
-/* reminders from the bot on training days */
+/* messages from the bot: reminders on training days and a report 2 hours after a workout.
+   On by default; the switch turns both off. */
 const remindReady=()=>!!(BOT_API&&tg&&tg.initData);
 function remindDays(){const d={};PROG.workouts.forEach(w=>w.days.forEach(x=>{d[x]=w.name;}));return d;}
 function renderRemind(){
@@ -530,33 +532,114 @@ function renderRemind(){
   $("#remindOn").checked=!!S.remind.on;
   $("#remindTimeWrap").hidden=!S.remind.on;
   const days=Object.keys(remindDays()).map(Number).sort();
-  $("#remindNote").textContent=S.remind.on?(days.length?"Напомню в "+days.map(d=>DAY_S[d]).join(", ")+" в "+pad(S.remind.hour)+":00.":"Отметь дни тренировок выше — тогда буду напоминать."):"В дни тренировок бот напишет тебе в Telegram.";
+  $("#remindNote").textContent=S.remind.on
+    ?(days.length?"Напомню в "+days.map(d=>DAY_S[d]).join(", ")+" в "+pad(S.remind.hour)+":00":"Отметь дни тренировок выше — буду напоминать")+
+      ", а через 2 часа после тренировки напишу, где ты поднял больше, чем в прошлый раз."
+    :"Шлёпа молчит. Включи — буду напоминать о тренировках и хвалить за прогресс.";
 }
 let remindT=null;
+const SYNC_LS="tg-gym-remind-sync";
+const remindPayload=()=>({on:!!S.remind.on,hour:S.remind.hour,tz:new Date().getTimezoneOffset(),days:remindDays()});
 function queueRemindSync(){clearTimeout(remindT);remindT=setTimeout(syncRemind,1500);}
-async function syncRemind(){
-  if(!remindReady())return false;
+/* returns the bot's answer, or null when it did not answer */
+async function syncRemind(extra){
+  if(!remindReady())return null;
+  const p=remindPayload();
   try{
     const r=await fetch(BOT_API+"/sync",{method:"POST",headers:{"content-type":"application/json"},
-      body:JSON.stringify({initData:tg.initData,on:!!S.remind.on,hour:S.remind.hour,tz:new Date().getTimezoneOffset(),days:remindDays()})});
-    return r.ok;
-  }catch(e){return false;}
+      body:JSON.stringify(Object.assign({initData:tg.initData},p,extra||{}))});
+    if(!r.ok)return null;
+    const j=await r.json().catch(()=>({ok:true}));
+    lsWrite(SYNC_LS,{p:JSON.stringify(p),t:Date.now()});
+    return j;
+  }catch(e){return null;}
 }
-async function saveRemind(){
+function askWrite(cb){
+  if(tg&&tg.requestWriteAccess&&tg.isVersionAtLeast&&tg.isVersionAtLeast("6.9")){
+    try{tg.requestWriteAccess(ok=>cb(!!ok));return;}catch(e){}
+  }
+  cb(true);
+}
+async function saveRemind(extra){
   renderRemind();
   if(S.mode==="cloud")cs("setItem",RKEY,JSON.stringify(S.remind)).catch(()=>{});
-  const ok=await syncRemind();
+  const ok=await syncRemind(extra);
   if(!ok)toast("Шлёпа не ответил — проверь интернет и переключи ещё раз");
+  return ok;
+}
+/* on start: settings are on by default (older saved "off" from before v2 counts as never set);
+   the bot hears about them without any tap, and asks for permission to write only if it has none */
+async function bootRemind(fresh){
+  if(!remindReady())return;
+  if(fresh){S.remind.on=true;S.remind.v=2;if(S.mode==="cloud")cs("setItem",RKEY,JSON.stringify(S.remind)).catch(()=>{});}
+  renderRemind();
+  const last=lsRead(SYNC_LS);
+  if(!fresh&&last&&last.p===JSON.stringify(remindPayload())&&Date.now()-last.t<3*864e5)return;
+  const j=await syncRemind();
+  if(j&&S.remind.on&&j.started===false&&!lsRead("tg-gym-wa-asked")){
+    lsWrite("tg-gym-wa-asked",1);
+    askWrite(ok=>{if(ok)syncRemind({wa:1});});
+  }
 }
 on("#remindOn","change",ev=>{
   const want=ev.target.checked;
-  const apply=()=>{S.remind.on=want;haptic("tap");saveRemind().then(()=>{if(want)toast("Готово — напомню в дни тренировок");});};
-  if(want&&tg&&tg.requestWriteAccess&&tg.isVersionAtLeast&&tg.isVersionAtLeast("6.9")){
-    try{tg.requestWriteAccess(ok=>{if(ok)apply();else{ev.target.checked=false;toast("Без разрешения Шлёпа не сможет написать");}});return;}catch(e){}
-  }
-  apply();
+  const apply=extra=>{S.remind.on=want;S.remind.v=2;haptic("tap");
+    saveRemind(extra).then(ok=>{if(ok&&want)toast("Готово — Шлёпа на связи");});};
+  if(!want){apply();return;}
+  askWrite(ok=>{if(ok)apply({wa:1});else{ev.target.checked=false;toast("Без разрешения Шлёпа не сможет написать");}});
 });
 on("#remindHour","change",ev=>{S.remind.hour=Number(ev.target.value)||8;saveRemind();});
+
+/* the report: for each exercise of today, the best set against the previous time it was done.
+   Same top weight with more reps also counts as progress. Sent at most every 2 minutes while
+   the workout is being filled in, and right away when the app is closed. */
+function repsAt(x,w){let m=0;x.r.forEach((r,i)=>{if(r!=null&&x.w[i]===w&&r>m)m=r;});return m;}
+function valText(v,u,reps){
+  const t=u==="кг"?fmt(v)+" кг":u==="кг доп."?"+"+fmt(v)+" кг":u==="повт."?v+" повт.":fmt(v)+" "+u;
+  return reps?t+" × "+reps:t;
+}
+function workoutReport(date){
+  const doc=S.docs.get(date);
+  if(!isWorkout(doc))return {date:date,n:0};
+  const up=[],down=[];let n=0,c=0;
+  Object.keys(doc.ex).forEach(id=>{
+    const raw=doc.ex[id];if(!hasSets(raw))return;
+    const e=exById(id);if(!e)return;
+    n++;
+    const cur=norm(raw),prev=prevEntry(id,date);if(!prev)return;
+    const tr=trackerFor(e,[{x:prev},{x:cur}]);
+    const a=tr.val(prev),b=tr.val(cur);if(a==null||b==null)return;
+    c++;
+    const it={n:e.name,d:short(prev.d),now:valText(b,tr.u),was:valText(a,tr.u)};
+    if(b>a){
+      /* a record only means something after a few sessions */
+      const past=[...S.docs.keys()].filter(d=>d<date).map(d=>{const x=S.docs.get(d).ex;return x&&hasSets(x[id])?tr.val(norm(x[id])):null;}).filter(v=>v!=null);
+      it.r=past.length>=2&&b>Math.max.apply(null,past);
+      up.push(it);
+    }else if(b<a)down.push(it);
+    else if(tr.u==="кг"||tr.u==="кг доп."){
+      const ra=repsAt(prev,a),rb=repsAt(cur,b);
+      if(rb>ra){it.now=valText(b,tr.u,rb);it.was=valText(a,tr.u,ra);up.push(it);}
+    }
+  });
+  return {date:date,n:n,c:c,up:up,down:down};
+}
+let repT=null,repLast=0;
+function queueReport(){
+  if(!remindReady()||!S.remind.on)return;
+  clearTimeout(repT);
+  repT=setTimeout(()=>sendReport(false),repLast?Math.max(3000,120000-(Date.now()-repLast)):2000);
+}
+function sendReport(closing){
+  clearTimeout(repT);repT=null;
+  if(!remindReady()||!S.remind.on)return;
+  const rep=workoutReport(today());
+  if(!rep.n&&!repLast)return;
+  repLast=Date.now();
+  /* text/plain keeps it a simple request, so it can still go out while the app is closing */
+  try{fetch(BOT_API+"/workout",{method:"POST",keepalive:!!closing,headers:{"content-type":"text/plain"},
+    body:JSON.stringify(Object.assign({initData:tg.initData,tz:new Date().getTimezoneOffset()},rep))}).catch(()=>{});}catch(e){}
+}
 
 /* editing mode: drag by the handle, or use the arrows; delete needs a second tap */
 function moveEx(EX,from,to){
@@ -1010,6 +1093,7 @@ setView(["log","prog","year"].indexOf(h)>=0?h:"log");
   }
   const cloudOK=!!(tg&&tg.initData&&tg.isVersionAtLeast&&tg.isVersionAtLeast("6.9")&&tg.CloudStorage);
   if(cloudOK){
+    let remindFresh=true;
     try{
       const allKeys=await cs("getKeys");
       const keys=allKeys.filter(k=>k.indexOf("w_")===0);
@@ -1017,7 +1101,8 @@ setView(["log","prog","year"].indexOf(h)>=0?h:"log");
         try{const pv=await cs("getItems",[PKEY]);if(pv&&pv[PKEY])setProg(cleanProg(JSON.parse(pv[PKEY])));}catch(e){}
       }
       if(allKeys.indexOf(RKEY)>=0){
-        try{const rv=await cs("getItems",[RKEY]);if(rv&&rv[RKEY])Object.assign(S.remind,JSON.parse(rv[RKEY]));}catch(e){}
+        try{const rv=await cs("getItems",[RKEY]);const sv=rv&&rv[RKEY]?JSON.parse(rv[RKEY]):null;
+          if(sv&&typeof sv==="object"){remindFresh=sv.v!==2;Object.assign(S.remind,sv,{v:2});}}catch(e){}
       }
       const docs=new Map();
       for(let i=0;i<keys.length;i+=20){
@@ -1028,7 +1113,7 @@ setView(["log","prog","year"].indexOf(h)>=0?h:"log");
       S.docs=docs;S.mode="cloud";S.loaded=true;
       lsWrite(LS,Object.fromEntries(S.docs));
       setStatus("",S.docs.size?"Журнал загружен":"Пока пусто — заполни первую тренировку");
-      onData();return;
+      onData();bootRemind(remindFresh);return;
     }catch(e){setStatus("err","Облако Telegram не ответило — пока сохраняю на телефоне");}
   }
   S.mode="local";

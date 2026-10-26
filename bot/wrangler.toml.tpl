@@ -5,7 +5,7 @@ compatibility_date = "2024-09-23"
 workers_dev = true
 
 [triggers]
-crons = ["0 * * * *"]
+crons = ["*/15 * * * *"]
 
 [[kv_namespaces]]
 binding = "KV"

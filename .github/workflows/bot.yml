@@ -53,4 +53,5 @@ jobs:
           sleep 3
           curl -fsS "$url/" ; echo
           echo "Worker: $url"
+          echo "::notice title=Worker URL::$url"
           echo "Bot worker: $url" >> "$GITHUB_STEP_SUMMARY"

@@ -152,7 +152,7 @@ const str = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().sli
 function cleanItems(list, max) {
   if (!Array.isArray(list)) return [];
   return list.slice(0, max).map(x => x && typeof x === "object" ? {
-    n: str(x.n, 60), now: str(x.now, 24), was: str(x.was, 24), d: str(x.d, 12), r: !!x.r
+    n: str(x.n, 60), now: str(x.now, 48), was: str(x.was, 48), d: str(x.d, 12), r: !!x.r
   } : null).filter(x => x && x.n && x.now && x.was);
 }
 async function onWorkout(req, env) {
@@ -173,7 +173,9 @@ async function onWorkout(req, env) {
     date, due: Date.now() + REPORT_DELAY, n,
     c: Math.min(n, Math.max(0, Math.round(Number(body.c) || 0))),
     t: Math.min(9999, Math.max(0, Math.round(Number(body.t) || 0))),
-    up: cleanItems(body.up, 12), down: cleanItems(body.down, 4)
+    up: cleanItems(body.up, 12), down: cleanItems(body.down, 4),
+    tips: (Array.isArray(body.tips) ? body.tips : []).slice(0, 4)
+      .map(x => x && typeof x === "object" ? { n: str(x.n, 60), t: str(x.t, 240) } : null).filter(x => x && x.n && x.t)
   };
   u.tz = Math.min(840, Math.max(-840, Math.round(Number(body.tz) || u.tz || 0)));
   u.id = user.id; u.lastW = date;
@@ -232,6 +234,11 @@ function fill(t, u, vars) {
 /* ---------- the report after a workout ---------- */
 const line = x => `• ${x.n} — ${x.now}, а ${x.d} было ${x.was}${x.r ? " 🏆" : ""}`;
 function reportText(u, rep) {
+  const tips = rep.tips || [];
+  const tipBlock = tips.length ? "\n\n💡 На заметку:\n" + tips.map(x => `• ${x.n}: ${x.t.charAt(0).toLowerCase() + x.t.slice(1)}.`).join("\n") : "";
+  return reportBody(u, rep) + tipBlock;
+}
+function reportBody(u, rep) {
   const up = rep.up || [], down = rep.down || [];
   const downBlock = down.length ? "\n\n" + pickFor(u, "dh", L.DOWN_HEAD) + "\n" + down.map(line).join("\n") : "";
   const ms = L.MILESTONES.indexOf(rep.t) >= 0 ? "\n\n" + fill(pickFor(u, "ms", L.MILESTONE), u, { t: rep.t }) : "";

@@ -34,7 +34,7 @@ async function tg(env, method, body) {
   });
   return r.json().catch(() => ({ ok: false }));
 }
-const openButton = text => ({ inline_keyboard: [[{ text: text || "💪 Открыть журнал", web_app: { url: APP_URL } }]] });
+const openButton = text => ({ inline_keyboard: [[{ text: text || "💪 Открыть качалку", web_app: { url: APP_URL } }]] });
 
 async function hex(buf) { return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join(""); }
 async function hookSecret(env) {
@@ -55,7 +55,7 @@ async function onUpdate(update, env) {
       text: `Привет${name ? ", " + name : ""}! Я Шлёпа 😼\n\n` +
         "Помогу тебе накачаться: записывай подходы и веса — я подскажу, когда пора добавить вес, " +
         "и покажу, где ты стал сильнее за месяц, а где просел.\n\n" +
-        "Хочешь, чтобы я напоминал о тренировках? Открой журнал → «Программа» → «Напоминания».\n\n" +
+        "Хочешь, чтобы я напоминал о тренировках? Открой качалку → «Программа» → «Напоминания».\n\n" +
         "Погнали, красавчик (или красавица) 💪",
       reply_markup: openButton()
     });
@@ -63,7 +63,7 @@ async function onUpdate(update, env) {
   }
   await tg(env, "sendMessage", {
     chat_id: msg.chat.id,
-    text: "Я пока умею немного: открывать журнал и напоминать о тренировках. Жми кнопку 👇",
+    text: "Я пока умею немного: открывать качалку и напоминать о тренировках. Жми кнопку 👇",
     reply_markup: openButton()
   });
 }

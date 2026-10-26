@@ -140,6 +140,8 @@ const WD=["воскресенье","понедельник","вторник","с
 const LS="tg-gym-log-v1",LSP="tg-gym-prog-v1",PKEY="program",KEY=d=>"w_"+d;
 
 const $=s=>document.querySelector(s);
+/* safe binding: an element missing from an older cached page must not break the whole app */
+const on=(sel,ev,fn)=>{const n=document.querySelector(sel);if(n)n.addEventListener(ev,fn);};
 const el=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;};
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
@@ -510,7 +512,7 @@ function finishProgEditor(EX){
   renderTemplates();
 }
 $("#peAdd").addEventListener("click",()=>openLib());
-$("#peEdit").addEventListener("click",()=>{S.peEdit=!S.peEdit;haptic("tap");renderProgEditor();});
+on("#peEdit","click",()=>{S.peEdit=!S.peEdit;haptic("tap");renderProgEditor();});
 
 /* editing mode: drag by the handle, or use the arrows; delete needs a second tap */
 function moveEx(EX,from,to){
@@ -885,8 +887,8 @@ function renderProgress(){
     body.append(box);
   }
 }
-$("#pmPrev").addEventListener("click",()=>{S.pm=shiftYM(S.pm||curYM(),-1);S.pmOpen=null;haptic("tap");renderProgress();});
-$("#pmNext").addEventListener("click",()=>{const n=shiftYM(S.pm||curYM(),1);if(n<=curYM()){S.pm=n;S.pmOpen=null;haptic("tap");renderProgress();}});
+on("#pmPrev","click",()=>{S.pm=shiftYM(S.pm||curYM(),-1);S.pmOpen=null;haptic("tap");renderProgress();});
+on("#pmNext","click",()=>{const n=shiftYM(S.pm||curYM(),1);if(n<=curYM()){S.pm=n;S.pmOpen=null;haptic("tap");renderProgress();}});
 function niceTicks(lo,hi,n){
   const raw=(hi-lo)/n,mag=Math.pow(10,Math.floor(Math.log10(raw)));
   const st=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw)||10*mag;

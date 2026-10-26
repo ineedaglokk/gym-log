@@ -164,7 +164,7 @@ const tSuf=e=>e.unit==="минуты"?" мин":" с";
 const isBody=e=>e.unit==="свой вес + кг";
 const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
-const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,hour:8,v:2},pm:null,pmOpen:null,
+const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
   libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null};
 
@@ -531,15 +531,16 @@ function renderRemind(){
   sel.value=String(S.remind.hour);
   $("#remindOn").checked=!!S.remind.on;
   $("#remindTimeWrap").hidden=!S.remind.on;
+  const fw=$("#remindFunWrap");if(fw){fw.hidden=!S.remind.on;$("#remindFun").checked=S.remind.fun!==false;}
   const days=Object.keys(remindDays()).map(Number).sort();
   $("#remindNote").textContent=S.remind.on
     ?(days.length?"Напомню в "+days.map(d=>DAY_S[d]).join(", ")+" в "+pad(S.remind.hour)+":00":"Отметь дни тренировок выше — буду напоминать")+
-      ", а через 2 часа после тренировки напишу, где ты поднял больше, чем в прошлый раз."
+      ", а через 2 часа после тренировки напишу, где сегодня больше, чем в прошлый раз."
     :"Шлёпа молчит. Включи — буду напоминать о тренировках и хвалить за прогресс.";
 }
 let remindT=null;
 const SYNC_LS="tg-gym-remind-sync";
-const remindPayload=()=>({on:!!S.remind.on,hour:S.remind.hour,tz:new Date().getTimezoneOffset(),days:remindDays()});
+const remindPayload=()=>({on:!!S.remind.on,fun:S.remind.fun!==false,hour:S.remind.hour,tz:new Date().getTimezoneOffset(),days:remindDays()});
 function queueRemindSync(){clearTimeout(remindT);remindT=setTimeout(syncRemind,1500);}
 /* returns the bot's answer, or null when it did not answer */
 async function syncRemind(extra){
@@ -589,6 +590,7 @@ on("#remindOn","change",ev=>{
   askWrite(ok=>{if(ok)apply({wa:1});else{ev.target.checked=false;toast("Без разрешения Шлёпа не сможет написать");}});
 });
 on("#remindHour","change",ev=>{S.remind.hour=Number(ev.target.value)||8;saveRemind();});
+on("#remindFun","change",ev=>{S.remind.fun=ev.target.checked;haptic("tap");saveRemind();});
 
 /* the report: for each exercise of today, the best set against the previous time it was done.
    Same top weight with more reps also counts as progress. Sent at most every 2 minutes while
@@ -622,7 +624,8 @@ function workoutReport(date){
       if(rb>ra){it.now=valText(b,tr.u,rb);it.was=valText(a,tr.u,ra);up.push(it);}
     }
   });
-  return {date:date,n:n,c:c,up:up,down:down};
+  const t=[...S.docs.keys()].filter(d=>d<=date&&isWorkout(S.docs.get(d))).length;   /* for "the 10th workout" */
+  return {date:date,n:n,c:c,t:t,up:up,down:down};
 }
 let repT=null,repLast=0;
 function queueReport(){

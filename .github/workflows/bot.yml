@@ -47,9 +47,9 @@ jobs:
           url="https://shlepa-bot.$sub.workers.dev"
           secret=$(printf '%s' "shlepa-hook:$BOT_TOKEN" | sha256sum | cut -c1-48)
           curl -fsS "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" -H "Content-Type: application/json" \
-            -d "{\"url\":\"$url/tg\",\"secret_token\":\"$secret\",\"allowed_updates\":[\"message\"],\"drop_pending_updates\":true}" | jq -c '{ok,description}'
+            -d "{\"url\":\"$url/tg\",\"secret_token\":\"$secret\",\"allowed_updates\":[\"message\",\"callback_query\"],\"drop_pending_updates\":true}" | jq -c '{ok,description}'
           curl -fsS "https://api.telegram.org/bot$BOT_TOKEN/setMyCommands" -H "Content-Type: application/json" \
-            -d '{"commands":[{"command":"start","description":"Открыть журнал и познакомиться"}]}' | jq -c '{ok}'
+            -d '{"commands":[{"command":"start","description":"Открыть качалку и познакомиться"},{"command":"fun","description":"Прикол от Шлёпы"}]}' | jq -c '{ok}'
           sleep 3
           curl -fsS "$url/" ; echo
           echo "Worker: $url"

@@ -168,7 +168,7 @@ const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
-  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null,wuN:{}};
+  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null,wuN:{},noteOpen:{}};
 
 /* ================= storage ================= */
 const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
@@ -199,6 +199,7 @@ function persist(date,body){
     refreshOthers();return;
   }
   if(S.mode!=="cloud"){S.retry={date:date,body:body};setStatus("","Журнал загружается, сохраню через секунду…");return;}
+  if(body&&JSON.stringify(body).length>4000){setStatus("err","Слишком много текста за день — сократи заметки");return;}
   if(body)S.docs.set(date,body);else S.docs.delete(date);
   lsWrite(LS,Object.fromEntries(S.docs));
   refreshOthers();
@@ -225,6 +226,18 @@ function normWu(u){
   const out={w:[],r:[]};
   u.r.forEach((r,i)=>{if(r!=null){out.r.push(r);out.w.push(w[i]==null?null:w[i]);}});
   return out.r.length?out:null;
+}
+/* A note is written for next time (x.nt). Only the note of the most recent earlier session of this
+   exercise shows up — notes never pile up. They stay in Telegram's storage and never go to the bot. */
+const NOTE_MAX=200;
+function lastNote(id,date){
+  let bd="",note=null;
+  for(const [d,doc] of S.docs){
+    if(d>=date||d<=bd)continue;
+    const x=doc.ex&&doc.ex[id];
+    if(x&&(hasSets(x)||x.nt)){bd=d;note=x.nt||null;}
+  }
+  return note?{d:bd,t:note}:null;
 }
 function prevEntry(id,date,n){
   let best=null;
@@ -438,8 +451,25 @@ function renderLog(){
 
     const head=el("div","exhead");
     head.append(el("h3",null,e.name));
-    {const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openTech(e.lib,e.name));head.append(ib);}
+    const pn=lastNote(e.id,S.date),myNote=doc&&doc.ex&&doc.ex[e.id]&&doc.ex[e.id].nt||"";
+    const btns=el("div","exbtns");
+    const nb=el("button","nbtn"+(pn?" has":"")+(myNote?" mine":""));nb.type="button";
+    nb.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+    nb.setAttribute("aria-label",(pn?"Заметка с прошлого раза: ":"Заметка: ")+e.name);
+    const open=!!S.noteOpen[e.id];nb.setAttribute("aria-expanded",String(open));
+    btns.append(nb);
+    {const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openTech(e.lib,e.name));btns.append(ib);}
+    head.append(btns);
     li.append(head);
+    const nbox=el("div","notebox");nbox.hidden=!open;
+    if(pn){const pv=el("div","nprev");pv.append(el("small",null,"С прошлого раза · "+short(pn.d)),el("p",null,pn.t));nbox.append(pv);}
+    const ta=el("textarea");ta.id="n-"+e.id;ta.maxLength=NOTE_MAX;ta.rows=2;ta.value=myNote;
+    ta.placeholder=pn?"Новая заметка на следующий раз":"Заметка на следующий раз — например, «сиденье на 4» или «добавить 2,5 кг»";
+    ta.setAttribute("aria-label","Заметка на следующий раз: "+e.name);
+    ta.addEventListener("input",()=>{nb.classList.toggle("mine",!!ta.value.trim());});
+    nbox.append(ta);
+    nb.addEventListener("click",()=>{const o=nbox.hidden;nbox.hidden=!o;S.noteOpen[e.id]=o;nb.setAttribute("aria-expanded",String(o));haptic("tap");if(o&&!pn)ta.focus();});
+    li.append(nbox);
     const goal=(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"");
     const ramp=sg.filter(x=>x.ramp).reduce((m,x)=>Math.max(m,x.w),-1);
     const prevWuText=prev&&prev.wu?"разминка "+setsText(prev.wu,e).replace(/ · /g,", ")+" → ":"";
@@ -528,7 +558,8 @@ function collect(){
     const w=seq(e.sets).map(k=>{const n=$("#w-"+e.id+"-"+k);return n?numv(n.value):null;});
     const uw=[],ur=[];
     for(let k=0;k<4;k++){const rn=$("#u-"+e.id+"-"+k);if(!rn)break;const rv=intv(rn.value);if(rv==null)continue;const wn=$("#v-"+e.id+"-"+k);ur.push(rv);uw.push(wn?numv(wn.value):null);}
-    if(r.some(v=>v!=null)||ur.length){ex[e.id]={w:w,r:r};if(ur.length)ex[e.id].wu={w:uw,r:ur};any=true;}
+    const tn=$("#n-"+e.id),nt=tn?tn.value.trim().slice(0,NOTE_MAX):"";
+    if(r.some(v=>v!=null)||ur.length||nt){ex[e.id]={w:w,r:r};if(ur.length)ex[e.id].wu={w:uw,r:ur};if(nt)ex[e.id].nt=nt;any=true;}
   });
   const old=S.docs.get(S.date);
   if(old&&old.ex)Object.keys(old.ex).forEach(id=>{if(!EX.some(e=>e.id===id)&&hasSets(old.ex[id])){ex[id]=old.ex[id];any=true;}});

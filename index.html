@@ -303,6 +303,17 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .status{font-size:12px}
 .exhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .exhead h3{font-size:16px;min-width:0}
+.exbtns{display:flex;gap:6px;flex:none}
+.nbtn{flex:none;width:26px;height:26px;border-radius:50%;border:0;background:var(--sunk);color:var(--muted);display:inline-grid;place-items:center;padding:0;cursor:pointer;position:relative}
+.nbtn.has{color:var(--accent);background:var(--accent-soft)}
+.nbtn.has::after{content:"";position:absolute;top:1px;right:1px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:2px solid var(--surface)}
+.nbtn.mine:not(.has){color:var(--fg)}
+.nbtn[aria-expanded="true"]{outline:2px solid var(--accent);outline-offset:1px}
+.notebox{display:flex;flex-direction:column;gap:8px;background:var(--sunk);border-radius:10px;padding:10px;margin-top:-2px}
+.notebox[hidden]{display:none}
+.nprev small{display:block;font-size:11.5px;color:var(--muted);margin-bottom:2px}
+.nprev p{margin:0;font-size:15px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
+.notebox textarea{width:100%;box-sizing:border-box;min-height:44px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:16px/1.35 var(--body);padding:8px 10px}
 .meta{margin:-4px 0 0;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .ibtn{border:0;background:var(--sunk);color:var(--muted)}
 .sets .lab{text-transform:none;letter-spacing:0;font-size:12px}
@@ -575,6 +586,6 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <script src="cat.js?v=c002ea8a"></script>
-<script src="app.js?v=f0b85d43"></script>
+<script src="app.js?v=6cbfc72c"></script>
 </body>
 </html>

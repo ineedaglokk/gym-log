@@ -139,7 +139,7 @@ const MON_S=["янв","фев","мар","апр","мая","июн","июл","а�
 const WD=["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
 const LS="tg-gym-log-v1",LSP="tg-gym-prog-v1",PKEY="program",RKEY="remind",KEY=d=>"w_"+d;
 /* the bot (Cloudflare Worker) that sends reminders; empty until it is deployed */
-const BOT_API="";
+const BOT_API="https://shlepa-bot.iwbbtbtb.workers.dev";
 
 const $=s=>document.querySelector(s);
 /* safe binding: an element missing from an older cached page must not break the whole app */

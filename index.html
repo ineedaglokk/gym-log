@@ -311,6 +311,12 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .exhead h3{font-size:16px;min-width:0}
 .exbtns{display:flex;gap:6px;flex:none}
 .nbtn{flex:none;width:26px;height:26px;border-radius:50%;border:0;background:var(--sunk);color:var(--muted);display:inline-grid;place-items:center;padding:0;cursor:pointer;position:relative}
+.skipbtn{flex:none;min-width:26px;height:26px;border-radius:13px;border:0;background:var(--sunk);color:var(--muted);display:inline-grid;place-items:center;padding:0 7px;cursor:pointer;font:600 13px/1 var(--body)}
+.skipbtn.armed{background:var(--danger-soft);color:var(--danger)}
+li.ex.skipped{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;border-style:dashed;background:transparent;padding:10px 12px}
+li.ex.skipped .sk-text{min-width:0}
+li.ex.skipped h3{font-size:15px;color:var(--muted);text-decoration:line-through}
+li.ex.skipped .meta{margin:2px 0 0}
 .nbtn.has{color:var(--accent);background:var(--accent-soft)}
 .nbtn.has::after{content:"";position:absolute;top:1px;right:1px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:2px solid var(--surface)}
 .nbtn.mine:not(.has){color:var(--fg)}
@@ -592,6 +598,6 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <script src="cat.js?v=c002ea8a"></script>
-<script src="app.js?v=0897267d"></script>
+<script src="app.js?v=fe219665"></script>
 </body>
 </html>

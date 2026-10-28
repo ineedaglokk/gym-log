@@ -168,7 +168,7 @@ const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
-  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null,wuN:{},noteOpen:{},lvl:{}};
+  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null,wuN:{},noteOpen:{},lvl:{},sk:new Set(),skDate:null};
 
 /* ================= storage ================= */
 const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
@@ -445,6 +445,7 @@ function renderLog(){
   $("#toToday").hidden=S.date===t;
 
   const doc=S.docs.get(S.date)||null;
+  if(S.skDate!==S.date){S.sk=new Set(doc&&Array.isArray(doc.sk)?doc.sk:[]);S.skDate=S.date;}
   $("#bwInput").value=doc&&doc.bw!=null?fmt(doc.bw):"";
   $("#delBtn").hidden=!doc;$("#delConfirm").hidden=true;
 
@@ -453,6 +454,7 @@ function renderLog(){
   if(!totalEx()){list.append(welcomeCard());return;}
   if(!EX.length){list.append(el("li","empty","В тренировке «"+W.name+"» пока нет упражнений. Собери её во вкладке «Программа»."));return;}
   EX.forEach((e,i)=>{
+    if(S.sk.has(e.id)){list.append(skippedCard(e));return;}
     const prev=prevEntry(e.id,S.date,e.sets);
     const sg=suggestSets(e,prev);
     const cur=doc&&doc.ex&&doc.ex[e.id]?norm(doc.ex[e.id],e.sets):null;
@@ -468,6 +470,19 @@ function renderLog(){
     const open=!!S.noteOpen[e.id];nb.setAttribute("aria-expanded",String(open));
     btns.append(nb);
     {const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openTech(e.lib,e.name));btns.append(ib);}
+    {/* ✕ — skip this exercise today (machine taken, no time…); sets already typed need a second tap */
+      const xb=el("button","skipbtn","✕");xb.type="button";xb.setAttribute("aria-label","Пропустить сегодня: "+e.name);
+      let armT=null;
+      xb.addEventListener("click",()=>{
+        const typed=[...li.querySelectorAll("input.num")].some(n=>/^(r|u)-/.test(n.id)&&n.value.trim()!=="");
+        if(typed&&!xb.classList.contains("armed")){
+          xb.classList.add("armed");xb.textContent="Пропустить?";haptic("tap");
+          toast("Нажми ещё раз — подходы за сегодня по этому упражнению удалятся");
+          armT=setTimeout(()=>{xb.classList.remove("armed");xb.textContent="✕";},3500);return;
+        }
+        clearTimeout(armT);setSkip(e.id,true);
+      });
+      btns.append(xb);}
     head.append(btns);
     li.append(head);
     const nbox=el("div","notebox");nbox.hidden=!open;
@@ -611,6 +626,22 @@ function renderLog(){
     list.append(li);
   });
 }
+function skippedCard(e){
+  const li=el("li","ex skipped");li.dataset.id=e.id;
+  const txt=el("div","sk-text");txt.append(el("h3",null,e.name),el("p","meta","Пропущено сегодня"));
+  const b=el("button","btn small","Вернуть");b.type="button";b.setAttribute("aria-label","Вернуть упражнение: "+e.name);
+  b.addEventListener("click",()=>setSkip(e.id,false));
+  li.append(txt,b);
+  return li;
+}
+function setSkip(id,on){
+  flush();
+  if(on)S.sk.add(id);else S.sk.delete(id);
+  haptic("tap");
+  renderLog();   /* the skipped card has no fields, so its sets drop out of what is saved next */
+  onEdit();flush();
+  if(on)toast("Пропущено сегодня — в следующий раз будет как обычно");
+}
 function collect(){
   const W=S.curW||logWorkout(),EX=W.ex;
   const ex={};let any=false;
@@ -625,8 +656,9 @@ function collect(){
   const old=S.docs.get(S.date);
   if(old&&old.ex)Object.keys(old.ex).forEach(id=>{if(!EX.some(e=>e.id===id)&&hasSets(old.ex[id])){ex[id]=old.ex[id];any=true;}});
   const bw=numv($("#bwInput").value);
-  if(!any&&bw==null)return null;
-  const body={date:S.date,wk:W.id,ex:ex};if(bw!=null)body.bw=bw;
+  const sk=[...(S.sk||[])].filter(id=>!ex[id]);
+  if(!any&&bw==null&&!sk.length)return null;
+  const body={date:S.date,wk:W.id,ex:ex};if(bw!=null)body.bw=bw;if(sk.length)body.sk=sk;
   return body;
 }
 function flush(){
@@ -648,7 +680,7 @@ $("#toToday").addEventListener("click",()=>goDate(today()));
 $("#dateInput").addEventListener("change",ev=>{if(ev.target.value)goDate(ev.target.value);});
 $("#delBtn").addEventListener("click",()=>{$("#delBtn").hidden=true;$("#delConfirm").hidden=false;});
 $("#delNo").addEventListener("click",()=>{$("#delConfirm").hidden=true;$("#delBtn").hidden=false;});
-$("#delYes").addEventListener("click",()=>{clearTimeout(S.timer);S.timer=null;persist(S.date,null);renderLog();toast("Запись удалена");});
+$("#delYes").addEventListener("click",()=>{clearTimeout(S.timer);S.timer=null;persist(S.date,null);S.sk=new Set();renderLog();toast("Запись удалена");});
 
 /* ================= PROGRAM (constructor) ================= */
 let progTimer=null;
@@ -1335,6 +1367,7 @@ function setView(v){
 document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>{haptic("tap");setView(b.dataset.view);window.scrollTo({top:0});}));
 function refreshOthers(){if(S.view==="year")renderYear();}
 function onData(){
+  S.skDate=null;   /* the journal has just loaded: read today's skips from it */
   if(S.retry){const r=S.retry;S.retry=null;persist(r.date,r.body);}
   if(!S.touched&&!S.timer)renderLog();
   refreshOthers();

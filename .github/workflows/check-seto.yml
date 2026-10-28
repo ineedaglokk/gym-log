@@ -1,0 +1,23 @@
+# One-off check: can seto.fit be shown inside the mini app (frame headers)? Results go to annotations.
+name: Check seto
+on:
+  push:
+    paths: [".github/workflows/check-seto.yml"]
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Headers
+        run: |
+          UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Telegram-iOS'
+          for u in "https://seto.fit/ru/exercises/?q=%D0%92%D0%B5%D1%80%D1%82%D0%B8%D0%BA%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F%20%D1%82%D1%8F%D0%B3%D0%B0" "https://seto.fit/ru/exercises/" "https://seto.fit/ru"; do
+            h=$(curl -sS -m 25 -L -A "$UA" -H "Sec-Fetch-Dest: iframe" -H "Referer: https://ineedaglokk.github.io/" -o body.html -D - "$u" || echo "curl failed")
+            st=$(printf '%s' "$h" | grep -i '^HTTP/' | tail -1 | tr -d '\r')
+            xfo=$(printf '%s' "$h" | grep -i '^x-frame-options' | tr -d '\r' | tr '\n' ' ')
+            csp=$(printf '%s' "$h" | grep -i '^content-security-policy' | tr -d '\r' | grep -io 'frame-ancestors[^;]*' | tr '\n' ' ')
+            srv=$(printf '%s' "$h" | grep -i '^\(server\|cf-mitigated\|location\)' | tr -d '\r' | tr '\n' ' ')
+            title=$(grep -io '<title>[^<]*' body.html | head -1 | sed 's/<title>//I')
+            size=$(wc -c < body.html)
+            echo "::notice title=$u::status=[$st] xfo=[$xfo] frame-ancestors=[$csp] $srv title=[$title] bytes=$size"
+          done

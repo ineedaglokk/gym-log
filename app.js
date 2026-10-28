@@ -1084,19 +1084,13 @@ function tile(x,cls){
 /* built-in browser: seto.fit search for the exercise, shown inside the app.
    Nothing is collected from their site: we only open their own search page with the exercise name. */
 const SETO_URL=name=>"https://seto.fit/ru/exercises/?q="+encodeURIComponent(String(name||"").replace(/\((ж|м)\)/gi,"").replace(/["«»]/g,"").replace(/\s+/g," ").trim());
-let webT=null;
-function openWeb(name,x){
-  const f=$("#webFrame"),ld=$("#webLoad"),url=SETO_URL(name);
-  $("#webTitle").textContent=name;
-  ld.textContent="Загружаю seto…";ld.hidden=false;
-  f.onload=()=>{if(f.src!=="about:blank"){clearTimeout(webT);ld.hidden=true;}};
-  clearTimeout(webT);
-  webT=setTimeout(()=>{ld.textContent="";ld.append(el("span",null,"Страница долго грузится."),el("br"));
-    const b=el("button","btn","Открыть в браузере");b.type="button";
-    b.addEventListener("click",()=>{try{if(tg&&tg.openLink){tg.openLink(url);return;}}catch(e){}window.open(url,"_blank","noopener");});
-    ld.append(b);},15000);
-  f.src=url;
-  openSheet("webSheet");
+/* Since 28 Oct 2026 seto.fit forbids being shown inside other sites (X-Frame-Options: SAMEORIGIN,
+   frame-ancestors 'self'), so the in-app window would stay blank: the search opens in Telegram's browser. */
+function openWeb(name){
+  const url=SETO_URL(name);
+  haptic("tap");
+  try{if(tg&&tg.openLink){tg.openLink(url);return;}}catch(e){}
+  window.open(url,"_blank","noopener");
 }
 /* search by the catalog name (it matches seto); exercises typed in by hand are searched by their own name */
 function openTech(libId,name){const x=LIBMAP[libId]||null;openWeb((x&&x.name)||name||"",x);}

@@ -281,6 +281,11 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .addbtn.done{background:var(--up-soft);border-color:var(--up-soft);color:var(--up);font-size:18px;cursor:default}
 .libgroup{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin:6px 0 -2px}
 .custom{display:flex;gap:8px}
+.cname{width:100%;box-sizing:border-box;height:42px;border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:16px var(--body);padding:0 12px}
+.cmore{display:flex;flex-direction:column;gap:6px}
+.cmore[hidden]{display:none}
+.clab{font-size:12px;color:var(--muted);margin-top:4px}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
 .custom input{flex:1;min-width:0;height:42px;border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:16px var(--body);padding:0 12px}
 
 /* bottom sheets */
@@ -570,7 +575,13 @@ li.ex.skipped .meta{margin:2px 0 0}
       <p class="libcredit">Нажми на карточку — откроется страница упражнения на <a href="https://fitpush.ru/exercises/" target="_blank" rel="noopener">fitpush.ru</a> с техникой и видео, «+» — добавит его в программу. Фото на карточках — Free Exercise DB (общественное достояние).</p>
       <div class="card">
         <span class="eyebrow">Нет нужного упражнения?</span>
-        <div class="custom"><input id="customName" maxlength="60" placeholder="Название своего упражнения" aria-label="Название своего упражнения"><button type="button" class="btn primary" id="customAdd">Добавить</button></div>
+        <input class="cname" id="customName" maxlength="60" placeholder="Название своего упражнения" aria-label="Название своего упражнения" autocomplete="off">
+        <div class="cmore" id="customMore" hidden>
+          <span class="clab">Группа мышц</span><div class="chips wrap" id="customGroup" role="group" aria-label="Группа мышц"></div>
+          <span class="clab">Снаряд</span><div class="chips wrap" id="customEq" role="group" aria-label="Снаряд"></div>
+          <span class="clab">Как считать</span><div class="chips wrap" id="customUnit" role="group" aria-label="Как считать"></div>
+        </div>
+        <button type="button" class="btn primary wide" id="customAdd">Добавить своё упражнение</button>
       </div>
     </div>
   </div>
@@ -598,6 +609,6 @@ li.ex.skipped .meta{margin:2px 0 0}
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <script src="cat.js?v=7c8934fc"></script>
-<script src="app.js?v=d445786b"></script>
+<script src="app.js?v=c5e7d91d"></script>
 </body>
 </html>

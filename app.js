@@ -73,17 +73,26 @@ function cleanEx(e){
   if(lx&&e.lib!==lx.id){MOVED=true;if((e.lib&&SID(name)===e.lib)||DEFAULT_NAME[id]===name)name=lx.name;}
   else if(e.lib&&!lx)MOVED=true;
   const lo=Math.round(clampNum(e.lo,1,600,10)),hi=Math.max(lo,Math.round(clampNum(e.hi,1,600,12)));
-  return {id:id,lib:lib,name:name,
+  const own={};
+  if(!lib){   /* one's own exercise: muscle group and equipment chosen when it was added */
+    const g=Number(e.g),q=Number(e.q);
+    if(Number.isInteger(g)&&g>=0&&g<GROUPS.length){own.g=g;own.q=Number.isInteger(q)&&q>=0&&q<CAT.e.length?q:-1;}
+  }
+  return Object.assign(own,{id:id,lib:lib,name:name,
     sets:Math.round(clampNum(e.sets,1,6,3)),lo:lo,hi:hi,step:clampNum(e.step,0,100,2.5),
-    start:clampNum(e.start,0,1000,0),unit:UNITS.indexOf(e.unit)>=0?e.unit:"кг"};
+    start:clampNum(e.start,0,1000,0),unit:UNITS.indexOf(e.unit)>=0?e.unit:"кг"});
 }
 /* compact form, used both for storage and for share codes */
 function packProg(){
-  return {v:2,w:PROG.workouts.map(w=>[w.id,w.name,w.days,w.ex.map(e=>[e.id,e.name,e.sets,e.lo,e.hi,e.step,e.start,UNITS.indexOf(e.unit),e.lib||0])])};
+  /* [9] muscle group and [10] equipment — only for one's own exercises (catalog ones take them from the catalog) */
+  return {v:2,w:PROG.workouts.map(w=>[w.id,w.name,w.days,w.ex.map(e=>{
+    const a=[e.id,e.name,e.sets,e.lo,e.hi,e.step,e.start,UNITS.indexOf(e.unit),e.lib||0];
+    if(!e.lib&&e.g!=null)a.push(e.g,e.q!=null?e.q:-1);
+    return a;})])};
 }
 function unpackProg(o){
   if(!o)return null;
-  const ex=b=>({id:b[0],name:b[1],sets:b[2],lo:b[3],hi:b[4],step:b[5],start:b[6],unit:UNITS[b[7]]||"кг",lib:b[8]||null});
+  const ex=b=>({id:b[0],name:b[1],sets:b[2],lo:b[3],hi:b[4],step:b[5],start:b[6],unit:UNITS[b[7]]||"кг",lib:b[8]||null,g:b[9],q:b[10]});
   if(o.v===2&&Array.isArray(o.w))return {workouts:o.w.map(a=>({id:a[0],name:a[1],days:a[2],ex:(a[3]||[]).map(ex)}))};
   if(Array.isArray(o.e))return {workouts:[{id:"full",name:"Тренировка",days:o.d,ex:o.e.map(ex)}]};   /* first share-code format */
   return o;
@@ -762,6 +771,7 @@ function pnum(val,mode,onset,label){
 function thumb(e){
   const x=e.lib&&LIBMAP[e.lib];
   if(x)return pic(x,"pc-media");
+  if(e.g!=null&&e.g>=0)return tile({group:GROUPS[e.g],ei:e.q>=0?e.q:EQ_BODY},"pc-media ico");
   return el("span","pc-media blank",(e.name||"?").slice(0,1).toUpperCase());
 }
 function renderProgEditor(){
@@ -798,6 +808,18 @@ function renderProgEditor(){
       name.addEventListener("change",()=>{if(!name.value.trim())e.name="Упражнение";renderProgEditor();});
       card.append(name);
       const f=el("div","pe-fields");
+      if(!e.lib){
+        const gs=el("select");gs.append(el("option",null,"— не выбрана —"));gs.options[0].value="-1";
+        GROUPS.forEach((g,k)=>{const o=el("option",null,g);o.value=String(k);gs.append(o);});
+        gs.value=String(e.g!=null?e.g:-1);
+        gs.addEventListener("change",()=>{const v=Number(gs.value);if(v>=0){e.g=v;if(e.q==null)e.q=-1;}else{delete e.g;delete e.q;}renderProgEditor();saveProg();});
+        f.append(pfield("Группа мышц",gs));
+        const qs=el("select");qs.append(el("option",null,"— не выбран —"));qs.options[0].value="-1";
+        CAT.e.forEach((q,k)=>{const o=el("option",null,q);o.value=String(k);qs.append(o);});
+        qs.value=String(e.q!=null?e.q:-1);qs.disabled=e.g==null;
+        qs.addEventListener("change",()=>{e.q=Number(qs.value);renderProgEditor();saveProg();});
+        f.append(pfield("Снаряд",qs));
+      }
       f.append(pfield("Подходы",pnum(e.sets,"numeric",v=>{e.sets=Math.round(clampNum(v,1,6,3));})));
       const pair=el("div","pair");
       const lo=pnum(e.lo,"numeric",v=>{e.lo=Math.round(clampNum(v,1,600,e.lo));if(e.hi<e.lo)e.hi=e.lo;},"От");
@@ -1111,7 +1133,7 @@ function renderLibChips(){
   ["Все"].concat(GROUPS).forEach(g=>{
     const b=el("button",null,g);b.type="button";
     b.setAttribute("aria-pressed",String(S.libGroup===g));
-    b.addEventListener("click",()=>{S.libGroup=g;haptic("tap");renderLibChips();renderLibList();});
+    b.addEventListener("click",()=>{S.libGroup=g;if(g!=="Все")CU.g=GROUPS.indexOf(g);haptic("tap");renderLibChips();renderLibList();renderCustom();});
     c.append(b);
   });
 }
@@ -1172,19 +1194,34 @@ function renderLibList(){
 function openLib(){
   S.libQuery="";$("#libSearch").value="";
   $("#libTitle").textContent="Библиотека → «"+PW().name+"»";
-  renderLibChips();renderLibList();openSheet("libSheet");
+  renderLibChips();renderLibList();renderCustom();openSheet("libSheet");
   $("#libSheet .body").scrollTop=0;
 }
 $("#libSearch").addEventListener("input",ev=>{S.libQuery=ev.target.value;renderLibList();});
+/* one's own exercise: name, muscle group, equipment and how it is counted; the rest like a catalog one */
+const EQ_BODY=Math.max(0,CAT.e.indexOf("Свой вес"));
+const CU={g:null,q:null,u:0};
+function renderCustom(){
+  const more=$("#customMore");if(!more)return;
+  more.hidden=!$("#customName").value.trim();
+  const chips=(box,list,cur,set)=>{box.textContent="";list.forEach((t,k)=>{const b=el("button",null,t);b.type="button";b.setAttribute("aria-pressed",String(cur===k));
+    b.addEventListener("click",()=>{set(k);haptic("tap");renderCustom();});box.append(b);});};
+  chips($("#customGroup"),GROUPS,CU.g,k=>{CU.g=k;});
+  chips($("#customEq"),CAT.e,CU.q,k=>{CU.q=k;});
+  chips($("#customUnit"),["Повторы","Секунды","Минуты"],CU.u,k=>{CU.u=k;});
+}
+on("#customName","input",renderCustom);
 $("#customAdd").addEventListener("click",()=>{
   const n=$("#customName").value.trim();
   if(!n){$("#customName").focus();return;}
+  if(CU.g==null){renderCustom();toast("Выбери группу мышц");$("#customGroup").scrollIntoView({block:"center",behavior:"smooth"});return;}
+  if(CU.q==null){toast("Выбери снаряд");$("#customEq").scrollIntoView({block:"center",behavior:"smooth"});return;}
   const W=PW();
   if(W.ex.length>=MAX_EX||totalEx()>=MAX_TOTAL){toast("Достигнут лимит упражнений в программе");return;}
   const id=rid("x");
-  W.ex.push({id:id,lib:null,name:n.slice(0,60),sets:3,lo:10,hi:12,step:2.5,start:0,unit:"кг"});
-  $("#customName").value="";
-  saveProg();closeSheet();S.editKey=W.id+"/"+id;renderProgEditor();openSheet("exSheet");toast("Добавлено — настрой подходы и вес");
+  W.ex.push(Object.assign({id:id,lib:null,name:n.slice(0,60),g:CU.g,q:CU.q,start:0},catDefaults(GROUPS[CU.g],CAT.e[CU.q],CU.u)));
+  $("#customName").value="";CU.g=null;CU.q=null;CU.u=0;renderCustom();
+  saveProg();closeSheet();S.editKey=W.id+"/"+id;renderProgEditor();openSheet("exSheet");toast("Добавлено — проверь подходы и вес");
 });
 
 /* ================= YEAR: calendar + progress ================= */

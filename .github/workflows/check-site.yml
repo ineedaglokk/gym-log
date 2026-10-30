@@ -1,0 +1,32 @@
+# One-off check: how fitpush.ru's exercise search works (URL parameters, frame headers). Results go to annotations.
+name: Check site
+on:
+  push:
+    paths: [".github/workflows/check-site.yml"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect
+        run: |
+          UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Telegram-iOS'
+          note(){ echo "::notice title=$1::$(printf '%s' "$2" | tr '\n' ' ' | tr -s ' ' | cut -c1-3500)"; }
+          h=$(curl -sS -m 30 -L -A "$UA" -o page.html -D - "https://fitpush.ru/exercises/")
+          note "headers" "$(printf '%s' "$h" | grep -i '^\(HTTP/\|x-frame-options\|content-security-policy\|server\)' | tr -d '\r')"
+          note "inputs" "$(grep -io '<input[^>]*>' page.html | head -10)"
+          note "forms" "$(grep -io '<form[^>]*>' page.html | head -5)"
+          note "search-attrs" "$(grep -io '[a-z-]*search[a-z-]*="[^"]*"' page.html | sort -u | head -20)"
+          for s in $(grep -io '<script[^>]*src="[^"]*"' page.html | grep -io 'src="[^"]*"' | sed 's/src="//;s/"$//' | head -15); do
+            case "$s" in http*) u="$s";; //*) u="https:$s";; /*) u="https://fitpush.ru$s";; *) u="https://fitpush.ru/exercises/$s";; esac
+            curl -sS -m 20 -A "$UA" -o js.txt "$u" || continue
+            hits=$(grep -o '.\{0,120\}\(URLSearchParams\|location\.search\|searchParams\|get("q")\|get("search")\|get(.query.)\|[?&]q=\|[?&]search=\).\{0,160\}' js.txt | head -6)
+            [ -n "$hits" ] && note "js $u" "$hits"
+          done
+          inl=$(grep -o '.\{0,120\}\(URLSearchParams\|location\.search\|searchParams\|[?&]q=\|[?&]search=\).\{0,160\}' page.html | head -8)
+          note "inline" "${inl:-none}"
+          note "search-ui" "$(grep -io '.\{0,200\}Поиск упражнения.\{0,300\}' page.html | head -2)"
+          # does a query in the URL change the page?
+          for q in "q" "search" "s" "query"; do
+            curl -sS -m 30 -L -A "$UA" -o r.html "https://fitpush.ru/exercises/?$q=%D0%BF%D1%80%D0%B8%D1%81%D0%B5%D0%B4"
+            note "url ?$q=присед" "bytes=$(wc -c < r.html) same_as_plain=$(cmp -s page.html r.html && echo yes || echo no) value_echoed=$(grep -c 'присед' r.html)"
+          done

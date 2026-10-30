@@ -5,7 +5,7 @@
 const UNITS=["кг","кг в руке","свой вес + кг","секунды","минуты"];
 const norm1=t=>String(t||"").toLowerCase().replace(/ё/g,"е");
 /* exercise catalog: names as on seto.fit (the user's own list), so the "i" search finds exactly these;
-   group, equipment and photo are ours (photos: Free Exercise DB, public domain) */
+   group, equipment and photo are ours (photos: Free Exercise DB — origin and licence of its pictures unknown, see README) */
 const CAT=window.CAT||{g:[],e:[],x:[]};
 const GROUPS=CAT.g;
 const hash36=t=>{let h=2166136261;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(36);};
@@ -1162,7 +1162,7 @@ function openTech(libId,name){
   const x=LIBMAP[libId]||null;
   openUrl(x&&x.slug?FP_URL(x.slug):SETO_URL(name||(x&&x.name)||""));
 }
-/* card picture: a real photo of this very exercise (Free Exercise DB, public domain), matched by
+/* card picture: a real photo of this very exercise (Free Exercise DB; licence of its pictures unknown), matched by
    meaning, or nothing at all — no look-alike exercises, icons or banners. A photo that fails to load
    is removed and the card stays text-only. */
 function pic(x,cls){

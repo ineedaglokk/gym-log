@@ -220,6 +220,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .pc-main .target{margin:1px 0 0}
 .pc-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .pc-tools .grow{flex:1}
+.replbtn{color:var(--accent);font-weight:500;margin-bottom:8px}
 .pc .pe-name{height:38px}
 
 /* group filter chips + search */
@@ -249,6 +250,9 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .lc-media.ico,.pc-media.ico{display:grid;padding:0;border-radius:0}
 .lc-add{position:absolute;top:8px;right:8px;width:38px;height:38px;border-radius:50%;border:0;background:var(--surface);color:var(--accent);font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;box-shadow:0 1px 3px rgb(0 0 0 / .14)}
 .lc-add.done{background:var(--up-soft);color:var(--up);font-size:17px;cursor:default}
+.lc-add.swap{font-size:20px;font-weight:600}
+.lc.busy{opacity:.55}
+.replnote{margin:0;padding:10px 12px;border-radius:10px;background:var(--accent-soft);font-size:13px;line-height:1.4}
 .tile{display:inline-grid;place-items:center;color:var(--tfg);background:var(--tbg);border-radius:10px;padding:6px}
 .tile svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
 .lc,.tile{--tbg:hsl(var(--h) 38% 93%);--tfg:hsl(var(--h) 45% 36%)}
@@ -571,6 +575,7 @@ li.ex.skipped .meta{margin:2px 0 0}
     <div class="bar"><h3 id="libTitle">Библиотека упражнений</h3><button type="button" class="closebtn" data-close aria-label="Закрыть">✕</button></div>
     <div class="body">
       <input class="search" id="libSearch" type="search" placeholder="Поиск: тяга блока, жим, гантели…" aria-label="Поиск упражнения" autocomplete="off">
+      <p class="replnote" id="libRepl" hidden>Нажми «⇄» у упражнения, на которое меняешь. Прошлые записи, заметки и прогресс перейдут к нему, подходы и вес останутся.</p>
       <div class="chips" id="libChips" role="group" aria-label="Группа мышц"></div>
       <div id="libList" style="display:flex;flex-direction:column;gap:12px"></div>
       <p class="libcredit">Нажми на карточку — откроется страница упражнения на <a href="https://fitpush.ru/exercises/" target="_blank" rel="noopener">fitpush.ru</a> с техникой и видео, «+» — добавит его в программу. Фото — Free Exercise DB (общественное достояние), только там, где это точно то же упражнение.</p>
@@ -609,7 +614,7 @@ li.ex.skipped .meta{margin:2px 0 0}
 
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
-<script src="cat.js?v=8c3a7b9f"></script>
-<script src="app.js?v=634ba1f9"></script>
+<script src="cat.js?v=9996b662"></script>
+<script src="app.js?v=6801e97c"></script>
 </body>
 </html>

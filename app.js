@@ -13,8 +13,8 @@ const SID=name=>"s"+hash36(name);
 function catDefaults(g,eq,u){
   if(u===2)return {sets:1,lo:10,hi:20,step:0,unit:"минуты"};
   if(u===1)return {sets:3,lo:20,hi:45,step:0,unit:"секунды"};
-  const small=["Плечи","Бицепс","Трицепс","Пресс","Икры"].indexOf(g)>=0;
-  const rep=g==="Икры"?[12,15]:(g==="Пресс"||g==="Бицепс"||g==="Трицепс"?[10,15]:(g==="Плечи"?[10,12]:(g==="Кардио"?[15,25]:[8,12])));
+  const small=["Плечи","Бицепс","Трицепс","Пресс","Икры","Предплечья"].indexOf(g)>=0;
+  const rep=g==="Икры"||g==="Предплечья"?[12,15]:(g==="Пресс"||g==="Бицепс"||g==="Трицепс"?[10,15]:(g==="Плечи"?[10,12]:(g==="Кардио"?[15,25]:[8,12])));
   const body=["Свой вес","Турник/брусья","TRX","Коврик","Скамья","Резинка","Инвентарь"].indexOf(eq)>=0;
   const hand=eq==="Гантели"||eq==="Гиря";
   const step=body?2.5:(hand?(small?1:2):(eq==="Штанга"?(small?2.5:5):(g==="Ноги"?5:2.5)));
@@ -187,7 +187,7 @@ const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
-  libGroup:"Все",libQuery:"",editKey:null,pwi:0,logW:null,curW:null,wuN:{},noteOpen:{},lvl:{},sk:new Set(),skDate:null};
+  libGroup:"Все",libQuery:"",editKey:null,repl:null,pwi:0,logW:null,curW:null,wuN:{},noteOpen:{},lvl:{},sk:new Set(),skDate:null};
 
 /* ================= storage ================= */
 const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
@@ -208,7 +208,7 @@ function setStatus(kind,text){
   clearTimeout(statusT);if(kind==="ok"||(!kind&&/загружен|пусто/i.test(text)))statusT=setTimeout(()=>{s.textContent="";},1600);
 }
 let toastT=null;
-function toast(t){const e=$("#toast");e.textContent=t;e.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{e.hidden=true;},1900);}
+function toast(t){const e=$("#toast");e.textContent=t;e.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{e.hidden=true;},Math.min(4500,Math.max(1900,t.length*50)));}   /* long ones stay long enough to read */
 
 function persist(date,body){
   if(S.mode==="local"){
@@ -840,6 +840,8 @@ function renderProgEditor(){
       del.addEventListener("click",()=>{EX.splice(i,1);S.editKey=null;closeSheet();haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
       {const tb=el("button","btn","Техника");tb.type="button";tb.addEventListener("click",()=>openTech(e.lib,e.name));tools.append(tb);}
       tools.append(mv(-1,"↑","Выше"),mv(1,"↓","Ниже"),el("span","grow"),del);
+      {const rb=el("button","btn wide replbtn","⇄ Заменить на другое упражнение");rb.type="button";
+        rb.addEventListener("click",()=>openLib({wid:W.id,id:e.id}));card.append(rb);}
       card.append(tools);
     }
   });
@@ -1112,6 +1114,7 @@ function closeSheet(){
   const id=stack.pop();if(!id)return;
   document.getElementById(id).hidden=true;
   if(id==="exSheet"){S.editKey=null;$("#exEditBody").textContent="";}
+  if(id==="libSheet")S.repl=null;
   if(id==="webSheet"){clearTimeout(webT);$("#webFrame").src="about:blank";}
   if(!stack.length){document.body.style.overflow="";try{if(tg&&tg.BackButton)tg.BackButton.hide();}catch(e){}}
 }
@@ -1178,6 +1181,14 @@ function libCard(x){
   if(ph)op.append(ph);else c.classList.add("nomedia");
   op.append(tx);
   op.addEventListener("click",()=>openTech(x.id));
+  if(S.repl){
+    const cur=replTarget(),now=cur&&cur.lib===x.id,busy=!now&&replBusy().has(x.id);
+    const b=el("button","lc-add"+(now||busy?" done":" swap"),now||busy?"✓":"⇄");b.type="button";
+    b.setAttribute("aria-label",now?"Это упражнение сейчас в программе":(busy?"Уже есть в тренировке":"Заменить на: "+x.name));
+    if(now||busy){b.disabled=true;if(busy)c.classList.add("busy");}
+    else b.addEventListener("click",()=>replaceEx({lib:x.id,name:x.name}));
+    c.append(op,b);return c;
+  }
   const on=inProg(x.id);
   const add=el("button","lc-add"+(on?" done":""),on?"✓":"+");add.type="button";
   add.setAttribute("aria-label",on?"Уже в программе":"Добавить в программу: "+x.name);
@@ -1187,8 +1198,12 @@ function libCard(x){
 function renderLibList(){
   const box=$("#libList");box.textContent="";
   const words=norm1(S.libQuery).trim().split(/\s+/).filter(Boolean);
-  const hits=LIB.filter(x=>(S.libGroup==="Все"||x.group===S.libGroup)&&words.every(w=>x.sk.indexOf(w)>=0));
+  const fits=x=>words.every(w=>x.sk.indexOf(w)>=0);
+  let hits=LIB.filter(x=>(S.libGroup==="Все"||x.group===S.libGroup)&&fits(x)),wide=false;
+  /* nothing in the chosen group — show what the search finds in the others instead of an empty list */
+  if(!hits.length&&words.length&&S.libGroup!=="Все"){hits=LIB.filter(fits);wide=hits.length>0;}
   if(!hits.length){box.append(el("p","target","Ничего не нашлось. Можно добавить своё упражнение ниже."));return;}
+  if(wide)box.append(el("p","target","В группе «"+S.libGroup+"» такого нет — нашлось в других:"));
   GROUPS.forEach(g=>{
     const hs=hits.filter(x=>x.group===g);if(!hs.length)return;
     hs.sort((a,b)=>(a.img?0:1)-(b.img?0:1));   /* with a photo first (stable: alphabetical inside) */
@@ -1196,10 +1211,46 @@ function renderLibList(){
     const grid=el("div","libgrid");hs.forEach(x=>grid.append(libCard(x)));box.append(grid);
   });
 }
-function openLib(){
+/* «Заменить»: the program slot keeps its id, so every past record, note and the progress line stay with it —
+   only the exercise it points to changes (in every workout that shares this id, since they share the history) */
+function replTarget(){const r=S.repl;if(!r)return null;const W=PROG.workouts.find(w=>w.id===r.wid);return (W&&W.ex.find(e=>e.id===r.id))||null;}
+function replBusy(){   /* catalog ids already present next to this exercise — replacing with them would make a duplicate */
+  const r=S.repl,out=new Set();if(!r)return out;
+  PROG.workouts.forEach(w=>{if(w.ex.some(e=>e.id===r.id))w.ex.forEach(e=>{if(e.id!==r.id&&e.lib)out.add(e.lib);});});return out;
+}
+function replaceEx(to){
+  const e=replTarget();if(!e){S.repl=null;closeSheet();return;}
+  if(to.lib&&replBusy().has(to.lib)){toast("«"+to.name+"» уже есть в этой тренировке");return;}
+  const lx=to.lib?LIBMAP[to.lib]:null;
+  const d=lx||catDefaults(GROUPS[to.g],CAT.e[to.q],to.u||0);
+  const kind=u=>u==="секунды"?1:(u==="минуты"?2:0);
+  const was=e.name,id=e.id,reset=kind(e.unit)!==kind(d.unit);
+  let n=0;
+  PROG.workouts.forEach(w=>w.ex.forEach(x=>{
+    if(x.id!==id)return;n++;
+    x.lib=to.lib||null;x.name=String(to.name).slice(0,60);
+    if(x.lib){delete x.g;delete x.q;}else{x.g=to.g;x.q=to.q;}
+    /* weights and reps carry over; only a switch between reps and time makes the old numbers meaningless */
+    if(reset){x.sets=d.sets;x.lo=d.lo;x.hi=d.hi;x.step=d.step;x.unit=d.unit;x.start=0;}
+  }));
+  S.repl=null;haptic("hit");saveProg();
+  if(stack[stack.length-1]==="libSheet")closeSheet();
+  renderProgEditor();
+  toast("«"+was+"» → «"+e.name+"»"+(reset?". Считается по-другому — проверь подходы":". История и прогресс на месте")+(n>1?" (в "+n+" тренировках)":""));
+}
+function openLib(repl){
   S.libQuery="";$("#libSearch").value="";
-  $("#libTitle").textContent="Библиотека → «"+PW().name+"»";
+  S.repl=repl||null;
+  const cur=replTarget();if(S.repl&&!cur)S.repl=null;
+  if(S.repl){
+    const lx=cur.lib&&LIBMAP[cur.lib],g=lx?lx.group:(cur.g!=null?GROUPS[cur.g]:null);
+    if(g)S.libGroup=g;
+    $("#libTitle").textContent="Заменить «"+cur.name+"»";
+  }else $("#libTitle").textContent="Библиотека → «"+PW().name+"»";
+  $("#libRepl").hidden=!S.repl;
+  $("#customAdd").textContent=S.repl?"Заменить на своё упражнение":"Добавить своё упражнение";
   renderLibChips();renderLibList();renderCustom();openSheet("libSheet");
+  {const pc=$("#libChips [aria-pressed=true]");if(pc&&pc.scrollIntoView)pc.scrollIntoView({block:"nearest",inline:"center"});}
   $("#libSheet .body").scrollTop=0;
 }
 $("#libSearch").addEventListener("input",ev=>{S.libQuery=ev.target.value;renderLibList();});
@@ -1221,6 +1272,7 @@ $("#customAdd").addEventListener("click",()=>{
   if(!n){$("#customName").focus();return;}
   if(CU.g==null){renderCustom();toast("Выбери группу мышц");$("#customGroup").scrollIntoView({block:"center",behavior:"smooth"});return;}
   if(CU.q==null){toast("Выбери снаряд");$("#customEq").scrollIntoView({block:"center",behavior:"smooth"});return;}
+  if(S.repl){const to={lib:null,name:n.slice(0,60),g:CU.g,q:CU.q,u:CU.u};$("#customName").value="";CU.g=null;CU.q=null;CU.u=0;renderCustom();replaceEx(to);return;}
   const W=PW();
   if(W.ex.length>=MAX_EX||totalEx()>=MAX_TOTAL){toast("Достигнут лимит упражнений в программе");return;}
   const id=rid("x");

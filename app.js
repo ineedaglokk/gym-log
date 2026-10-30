@@ -12,25 +12,28 @@ const hash36=t=>{let h=2166136261;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i)
 const SID=name=>"s"+hash36(name);
 function catDefaults(g,eq,u){
   if(u===2)return {sets:1,lo:10,hi:20,step:0,unit:"минуты"};
-  if(u===1)return g==="Растяжка"?{sets:2,lo:20,hi:40,step:0,unit:"секунды"}:{sets:3,lo:20,hi:45,step:0,unit:"секунды"};
-  const small=["Плечи","Бицепс","Трицепс","Предплечья","Пресс","Икры"].indexOf(g)>=0;
-  const rep=g==="Икры"||g==="Предплечья"?[12,15]:(g==="Пресс"||g==="Бицепс"||g==="Трицепс"||g==="Ягодицы"?[10,15]:(g==="Плечи"?[10,12]:(g==="Всё тело"?[6,10]:[8,12])));
+  if(u===1)return {sets:3,lo:20,hi:45,step:0,unit:"секунды"};
+  const small=["Плечи","Бицепс","Трицепс","Пресс","Икры"].indexOf(g)>=0;
+  const rep=g==="Икры"?[12,15]:(g==="Пресс"||g==="Бицепс"||g==="Трицепс"?[10,15]:(g==="Плечи"?[10,12]:(g==="Кардио"?[15,25]:[8,12])));
   const body=["Свой вес","Турник/брусья","TRX","Коврик","Скамья","Резинка","Инвентарь"].indexOf(eq)>=0;
   const hand=eq==="Гантели"||eq==="Гиря";
-  const step=body?2.5:(hand?(small?1:2):(eq==="Штанга"?(small?2.5:5):(g==="Ноги"||g==="Ягодицы"?5:2.5)));
+  const step=body?2.5:(hand?(small?1:2):(eq==="Штанга"?(small?2.5:5):(g==="Ноги"?5:2.5)));
   return {sets:3,lo:rep[0],hi:rep[1],step:step,unit:body?"свой вес + кг":(hand?"кг в руке":"кг")};
 }
 const LIB=[],LIBMAP={};
 CAT.x.forEach(r=>{
   const g=GROUPS[r[1]]||"",eq=CAT.e[r[2]]||"";
-  const x=Object.assign({id:SID(r[0]),name:r[0],group:g,equip:eq,ei:r[2],img:r[4]||null},catDefaults(g,eq,r[3]));
-  x.sk=norm1(x.name+" "+eq+" "+g);
+  const x=Object.assign({id:SID(r[0]),name:r[0],group:g,equip:eq,ei:r[2],img:r[4]||null,slug:r[5]||null,sub:r[6]||""},catDefaults(g,eq,r[3]));
+  x.sk=norm1(x.name+" "+eq+" "+g+" "+x.sub);
   LIBMAP[x.id]=x;LIB.push(x);
 });
 /* exercises of the earlier built-in library, so saved programs move to the new names */
 const OLD2NEW={"Barbell_Squat":"Приседания со штангой на спине","Front_Barbell_Squat":"Фронтальные приседания со штангой","Goblet_Squat":"Гоблет-приседания с гирей","Leg_Press":"Жим ногами","Dumbbell_Lunges":"Выпады с гантелями у плеч","Dumbbell_Rear_Lunge":"Обратные выпады","Split_Squat_with_Dumbbells":"Болгарские сплит-приседания с гантелями","Dumbbell_Step_Ups":"Зашагивание на скамью с гантелями и подъёмом колена","Leg_Extensions":"Разгибания ног в тренажере","Standing_Calf_Raises":"Подъём на носки стоя","Seated_Calf_Raise":"Подъём на носки в тренажёре сидя","Thigh_Adductor":"Сведение ног в тренажере","Romanian_Deadlift":"Румынская тяга","Stiff-Legged_Dumbbell_Deadlift":"Румынская тяга с гантелями","Barbell_Deadlift":"Становая тяга","Barbell_Hip_Thrust":"Ягодичный мостик со штангой с опорой на скамью","Barbell_Glute_Bridge":"Ягодичный мостик со штангой","Single_Leg_Glute_Bridge":"Ягодичный мостик с поочерёдным выпрямлением ног","Lying_Leg_Curls":"Сгибания ног в тренажере лёжа","Seated_Leg_Curl":"Сгибания ног в тренажере лёжа","Glute_Kickback":"Мах ногой назад в упоре на четвереньках","Thigh_Abductor":"Отведение бедра в тренажёре","Pull_Through":"Протяжка в блоке между ног","Barbell_Bench_Press_-_Medium_Grip":"Жим штанги лёжа","Barbell_Incline_Bench_Press_-_Medium_Grip":"Жим штанги на наклонной скамье","Dumbbell_Bench_Press":"Жим гантелей лёжа","Incline_Dumbbell_Press":"Жим гантелей на наклонной скамье","Dumbbell_Flyes":"Разводка гантелей лёжа","Cable_Crossover":"Сведение на блоке сверху вниз","Leverage_Chest_Press":"Жим от груди в тренажере","Pushups":"Отжимания","Dips_-_Chest_Version":"Отжимания на брусьях (с наклоном)","Standing_Military_Press":"Жим штанги стоя","Dumbbell_Shoulder_Press":"Жим гантелей над головой","Machine_Shoulder_Military_Press":"Жим вверх сидя в тренажёре","Side_Lateral_Raise":"Подъём гантелей в стороны","Front_Dumbbell_Raise":"Подъём гантели перед собой","Seated_Bent-Over_Rear_Delt_Raise":"Разведение гантелей на задние дельты сидя","Triceps_Pushdown_-_Rope_Attachment":"Разгибания на трицепс с канатом","Triceps_Pushdown":"Разгибания на трицепс с прямой рукоятью","EZ-Bar_Skullcrusher":"Французский жим со штангой лёжа","Standing_Dumbbell_Triceps_Extension":"Разгибание рук с гантелью из-за головы","Bench_Dips":"Отжимания от скамьи","Pullups":"Подтягивания","Wide-Grip_Lat_Pulldown":"Тяга верхнего блока","Close-Grip_Front_Lat_Pulldown":"Вертикальная тяга узким хватом","Seated_Cable_Rows":"Горизонтальная тяга блока к поясу (узкий хват)","Bent_Over_Barbell_Row":"Тяга штанги в наклоне","One-Arm_Dumbbell_Row":"Тяга гантели одной рукой в наклоне","Straight-Arm_Pulldown":"Пуловер на верхнем блоке с прямыми руками","Dumbbell_Shrug":"Шраги с гантелями","Barbell_Curl":"Подъём штанги на бицепс стоя","Dumbbell_Bicep_Curl":"Подъём гантелей на бицепс стоя","Hammer_Curls":"Молотковые сгибания","Standing_Biceps_Cable_Curl":"Подъём на бицепс одной рукой на нижнем блоке","Plank":"Планка","Side_Bridge":"Боковая планка","Dead_Bug":"Мёртвый жук","Reverse_Crunch":"Обратные скручивания","Hanging_Leg_Raise":"Подъём ног в висе","Cable_Crunch":"Скручивания на блоке","Pallof_Press":"Жим Паллофа","Farmers_Walk":"Прогулка фермера","Ab_Roller":"Выкатывание ролика для пресса"};
 const BYNAME={};LIB.forEach(x=>{BYNAME[norm1(x.name)]=x.id;});
-const libOf=id=>LIBMAP[id]||(OLD2NEW[id]?LIBMAP[SID(OLD2NEW[id])]:null)||null;
+/* names of the previous catalog (seto) → the current one (fitpush): saved programs move by themselves.
+   Records are kept by the program's exercise id, so the history stays whatever the name. */
+const SETO2NEW={};(CAT.m||[]).forEach(p=>{const r=CAT.x[p[1]];if(r)SETO2NEW[SID(p[0])]=SID(r[0]);});
+const libOf=id=>id?(LIBMAP[id]||LIBMAP[SETO2NEW[id]]||(OLD2NEW[id]?(LIBMAP[SID(OLD2NEW[id])]||LIBMAP[SETO2NEW[SID(OLD2NEW[id])]]):null)||null):null;
 const DAY_S=["пн","вт","ср","чт","пт","сб","вс"];
 const MAX_EX=20;
 
@@ -44,10 +47,10 @@ const DEFAULT_EX=[
   {id:"hipthrust",lib:SID("Ягодичный мостик со штангой с опорой на скамью"),name:"Ягодичный мост со скамьи",sets:3,lo:10,hi:12,step:2,start:20,unit:"кг"},
   {id:"row",lib:SID("Горизонтальная тяга блока к поясу (узкий хват)"),name:"Тяга нижнего блока",sets:3,lo:10,hi:12,step:5,start:35,unit:"кг"},
   {id:"lateral",lib:SID("Подъём гантелей в стороны"),name:"Махи гантелями в стороны",sets:3,lo:12,hi:15,step:1,start:5,unit:"кг в руке"},
-  {id:"biceps",lib:null,name:"Бицепс на блоке",sets:3,lo:10,hi:12,step:2.5,start:15,unit:"кг"},
+  {id:"biceps",lib:SID("Сгибание рук на бицепс с нижнего блока"),name:"Бицепс на блоке",sets:3,lo:10,hi:12,step:2.5,start:15,unit:"кг"},
   {id:"triceps",lib:SID("Разгибания на трицепс с канатом"),name:"Трицепс на блоке",sets:3,lo:10,hi:12,step:2.5,start:20,unit:"кг"}
 ];
-const DEFAULT_LIB={};DEFAULT_EX.forEach(e=>{DEFAULT_LIB[e.id]=e.lib;});
+const DEFAULT_LIB={},DEFAULT_NAME={};DEFAULT_EX.forEach(e=>{DEFAULT_LIB[e.id]=e.lib;DEFAULT_NAME[e.id]=e.name;});
 const MAX_W=7,MAX_TOTAL=40;
 const defaultProg=()=>({workouts:[{id:"full",name:"Фулбоди",days:[0,2,4],ex:DEFAULT_EX.map(e=>Object.assign({},e))}],saved:false});
 const emptyProg=()=>({workouts:[{id:"w1",name:"Моя тренировка",days:[],ex:[]}],saved:false});
@@ -58,12 +61,19 @@ const totalEx=()=>PROG.workouts.reduce((n,w)=>n+w.ex.length,0);
 const clampNum=(v,lo,hi,def)=>{v=Number(v);return isFinite(v)?Math.min(hi,Math.max(lo,v)):def;};
 const safeId=t=>String(t||"").replace(/[^A-Za-z0-9_]/g,"").slice(0,32);
 const rid=p=>p+Date.now().toString(36).slice(-4)+Math.random().toString(36).slice(2,5);
+let MOVED=false;   /* set when a loaded program had exercises of the previous catalog */
 function cleanEx(e){
   const id=safeId(e.id)||rid("x");
-  const lx=libOf(e.lib)||LIBMAP[BYNAME[norm1(e.name)]]||null;   /* exercises typed by hand get linked when the name matches the catalog */
-  const lib=lx?lx.id:(DEFAULT_LIB[id]||null);
+  /* exercises typed by hand get linked when the name matches the catalog */
+  const lx=libOf(e.lib)||LIBMAP[BYNAME[norm1(e.name)]]||libOf(DEFAULT_LIB[id])||null;
+  const lib=lx?lx.id:null;
+  let name=String(e.name||"").trim().slice(0,60)||"Упражнение";
+  /* moved to the new catalog: the old catalog's name (or the old built-in one) becomes the new name;
+     a name the user typed stays */
+  if(lx&&e.lib!==lx.id){MOVED=true;if((e.lib&&SID(name)===e.lib)||DEFAULT_NAME[id]===name)name=lx.name;}
+  else if(e.lib&&!lx)MOVED=true;
   const lo=Math.round(clampNum(e.lo,1,600,10)),hi=Math.max(lo,Math.round(clampNum(e.hi,1,600,12)));
-  return {id:id,lib:lib,name:String(e.name||"").trim().slice(0,60)||"Упражнение",
+  return {id:id,lib:lib,name:name,
     sets:Math.round(clampNum(e.sets,1,6,3)),lo:lo,hi:hi,step:clampNum(e.step,0,100,2.5),
     start:clampNum(e.start,0,1000,0),unit:UNITS.indexOf(e.unit)>=0?e.unit:"кг"};
 }
@@ -111,14 +121,14 @@ function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.editKey=null;S.peEdit=false;}
 /* ready-made splits for friends */
 const TEMPLATES=[
   {key:"full",name:"Фулбоди, 3 дня",note:"Одна тренировка на всё тело: пн, ср, пт",
-   w:[["Фулбоди",[0,2,4],["Жим ногами","Жим гантелей на наклонной скамье","Румынская тяга с гантелями","Тяга верхнего блока","Ягодичный мостик со штангой с опорой на скамью","Горизонтальная тяга блока к поясу (узкий хват)","Подъём гантелей в стороны","Подъём гантелей на бицепс стоя","Разгибания на трицепс с канатом"]]]},
+   w:[["Фулбоди",[0,2,4],["Жим ногами","Жим гантелей лежа на наклонной скамье","Румынская тяга с гантелями","Тяга верхнего блока широким хватом","Ягодичный мостик со штангой со скамьи","Тяга горизонтального блока узкой рукояткой","Отведения рук с гантелями в стороны стоя","Подъем гантелей на бицепс стоя","Разгибание рук на блоке с канатной рукоятью"]]]},
   {key:"ul",name:"Верх / низ, 4 дня",note:"Верх: пн, чт · Низ: вт, пт",
-   w:[["Верх",[0,3],["Жим штанги лёжа","Тяга верхнего блока","Жим гантелей над головой","Горизонтальная тяга блока к поясу (узкий хват)","Подъём гантелей в стороны","Подъём гантелей на бицепс стоя","Разгибания на трицепс с канатом"]],
-      ["Низ",[1,4],["Приседания со штангой на спине","Румынская тяга","Жим ногами","Сгибания ног в тренажере лёжа","Ягодичный мостик со штангой с опорой на скамью","Подъём на носки стоя","Планка"]]]},
+   w:[["Верх",[0,3],["Жим штанги лёжа","Тяга верхнего блока широким хватом","Жим гантелей сидя","Тяга горизонтального блока узкой рукояткой","Отведения рук с гантелями в стороны стоя","Подъем гантелей на бицепс стоя","Разгибание рук на блоке с канатной рукоятью"]],
+      ["Низ",[1,4],["Приседания со штангой на спине","Румынская тяга","Жим ногами","Сгибание ног в тренажере лежа","Ягодичный мостик со штангой со скамьи","Подъём на носки стоя","Планка"]]]},
   {key:"ppl",name:"Толкай / тяни / ноги, 3 дня",note:"Толкай: пн · Тяни: ср · Ноги: пт",
-   w:[["Толкай",[0],["Жим штанги лёжа","Жим гантелей на наклонной скамье","Жим гантелей над головой","Подъём гантелей в стороны","Разгибания на трицепс с канатом","Французский жим со штангой лёжа"]],
-      ["Тяни",[2],["Подтягивания","Тяга штанги в наклоне","Вертикальная тяга узким хватом","Разводка на заднюю дельту на блоке","Подъём штанги на бицепс стоя","Молотковые сгибания"]],
-      ["Ноги",[4],["Приседания со штангой на спине","Румынская тяга","Жим ногами","Сгибания ног в тренажере лёжа","Подъём на носки в тренажёре сидя","Подъём ног в висе"]]]}
+   w:[["Толкай",[0],["Жим штанги лёжа","Жим гантелей лежа на наклонной скамье","Жим гантелей сидя","Отведения рук с гантелями в стороны стоя","Разгибание рук на блоке с канатной рукоятью","Французский жим лежа"]],
+      ["Тяни",[2],["Подтягивания широким хватом","Тяга штанги в наклоне","Тяга верхнего блока узким (параллельным) хватом","Отведение рук назад в кроссовере сверху на задние дельты","Сгибание рук со штангой на бицепс прямым хватом","Сгибания рук с гантелями хватом молот стоя"]],
+      ["Ноги",[4],["Приседания со штангой на спине","Румынская тяга","Жим ногами","Сгибание ног в тренажере лежа","Подъем на носки сидя в тренажере","Подъем ног в висе на перекладине"]]]}
 ];
 function templateProg(t){
   if(t.make)return {workouts:t.make(),saved:true};
@@ -1116,16 +1126,18 @@ function tile(x,cls){
 /* built-in browser: seto.fit search for the exercise, shown inside the app.
    Nothing is collected from their site: we only open their own search page with the exercise name. */
 const SETO_URL=name=>"https://seto.fit/ru/exercises/?q="+encodeURIComponent(String(name||"").replace(/\((ж|м)\)/gi,"").replace(/["«»]/g,"").replace(/\s+/g," ").trim());
-/* Since 28 Oct 2026 seto.fit forbids being shown inside other sites (X-Frame-Options: SAMEORIGIN,
-   frame-ancestors 'self'), so the in-app window would stay blank: the search opens in Telegram's browser. */
-function openWeb(name){
-  const url=SETO_URL(name);
+/* «i» and a tap on a card open the exercise's page on fitpush.ru in Telegram's browser (the site
+   does not allow being shown inside other apps). Exercises not from the catalog: seto's search by name. */
+const FP_URL=slug=>"https://fitpush.ru/exercises/"+slug+"/";
+function openUrl(url){
   haptic("tap");
   try{if(tg&&tg.openLink){tg.openLink(url);return;}}catch(e){}
   window.open(url,"_blank","noopener");
 }
-/* search by the catalog name (it matches seto); exercises typed in by hand are searched by their own name */
-function openTech(libId,name){const x=LIBMAP[libId]||null;openWeb((x&&x.name)||name||"",x);}
+function openTech(libId,name){
+  const x=LIBMAP[libId]||null;
+  openUrl(x&&x.slug?FP_URL(x.slug):SETO_URL(name||(x&&x.name)||""));
+}
 /* card picture: the exercise photo, or an equipment icon on the muscle-group colour */
 function pic(x,cls){
   if(!x.img)return tile(x,cls+" ico");
@@ -1404,7 +1416,7 @@ function keepOldDefault(){
   const ids=new Set(DEFAULT_EX.map(e=>e.id));
   const used=[...S.docs.values()].some(d=>d&&d.ex&&Object.keys(d.ex).some(id=>ids.has(id)&&hasSets(d.ex[id])));
   if(!used)return;
-  setProg(defaultProg());saveProg();
+  setProg(cleanProg(defaultProg()));saveProg();
 }
 (async function(){
   if(tg){
@@ -1436,7 +1448,9 @@ function keepOldDefault(){
       if(allKeys.indexOf(PKEY)<0)keepOldDefault();
       lsWrite(LS,Object.fromEntries(S.docs));
       setStatus("",S.docs.size?"Журнал загружен":"Пока пусто — заполни первую тренировку");
-      onData();bootRemind(remindFresh);return;
+      onData();bootRemind(remindFresh);
+      if(MOVED){MOVED=false;saveProg();}   /* the program moved to the new catalog: keep it that way */
+      return;
     }catch(e){setStatus("err","Облако Telegram не ответило — пока сохраняю на телефоне");}
   }
   S.mode="local";

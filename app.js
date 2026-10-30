@@ -1160,11 +1160,18 @@ function openTech(libId,name){
   const x=LIBMAP[libId]||null;
   openUrl(x&&x.slug?FP_URL(x.slug):SETO_URL(name||(x&&x.name)||""));
 }
-/* card picture: the exercise photo, or an equipment icon on the muscle-group colour */
+/* card picture: fitpush's picture of the exercise page (loaded from fitpush.ru, not copied), then the
+   Free Exercise DB photo if there is one, then an equipment icon on the muscle-group colour */
+const FP_IMG=slug=>"https://fitpush.ru/assets/exercises/share-cards-v2/"+slug+".jpg";
 function pic(x,cls){
-  if(!x.img)return tile(x,cls+" ico");
-  const w=el("span",cls+" photo");const im=el("img");im.src=imgSrc(x.img,0);im.alt="";im.loading="lazy";im.decoding="async";
-  im.addEventListener("error",()=>{w.replaceWith(tile(x,cls+" ico"));},{once:true});
+  const srcs=[];
+  if(x.slug)srcs.push({u:FP_IMG(x.slug),fp:true});
+  if(x.img)srcs.push({u:imgSrc(x.img,0),fp:false});
+  if(!srcs.length)return tile(x,cls+" ico");
+  const w=el("span",cls+" photo"+(srcs[0].fp?" fp":""));const im=el("img");im.alt="";im.loading="lazy";im.decoding="async";
+  let k=0;
+  im.addEventListener("error",()=>{k++;if(k<srcs.length){w.classList.toggle("fp",srcs[k].fp);im.src=srcs[k].u;}else w.replaceWith(tile(x,cls+" ico"));});
+  im.src=srcs[0].u;
   w.append(im);return w;
 }
 function libCard(x){

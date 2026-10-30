@@ -243,7 +243,7 @@ td.w{font-family:var(--display);font-weight:500;font-size:16px}
 .lc-media,.pc-media{display:grid;place-items:center;width:100%;aspect-ratio:3/2;overflow:hidden;border-radius:0;padding:0}
 .lc-media.photo,.pc-media.photo{background:#fff}
 .lc-media img,.pc-media img{width:100%;height:100%;object-fit:cover;display:block}
-.lc-media.fp,.pc-media.fp{aspect-ratio:40/21;background:#eef3fb}
+.lc.nomedia .lc-text{padding-right:54px;min-height:64px}
 .lc-media.ico svg,.pc-media.ico svg{width:30%;height:auto;max-width:64px;aspect-ratio:1/1}
 .pc-media.blank{background:var(--sunk);color:var(--muted);font:600 28px var(--display)}
 .lc-media.ico,.pc-media.ico{display:grid;padding:0;border-radius:0}
@@ -573,7 +573,7 @@ li.ex.skipped .meta{margin:2px 0 0}
       <input class="search" id="libSearch" type="search" placeholder="Поиск: тяга блока, жим, гантели…" aria-label="Поиск упражнения" autocomplete="off">
       <div class="chips" id="libChips" role="group" aria-label="Группа мышц"></div>
       <div id="libList" style="display:flex;flex-direction:column;gap:12px"></div>
-      <p class="libcredit">Нажми на карточку — откроется страница упражнения на <a href="https://fitpush.ru/exercises/" target="_blank" rel="noopener">fitpush.ru</a> с техникой и видео, «+» — добавит его в программу. Картинки и страницы упражнений — fitpush.ru.</p>
+      <p class="libcredit">Нажми на карточку — откроется страница упражнения на <a href="https://fitpush.ru/exercises/" target="_blank" rel="noopener">fitpush.ru</a> с техникой и видео, «+» — добавит его в программу. Фото — Free Exercise DB (общественное достояние), только там, где это точно то же упражнение.</p>
       <div class="card">
         <span class="eyebrow">Нет нужного упражнения?</span>
         <input class="cname" id="customName" maxlength="60" placeholder="Название своего упражнения" aria-label="Название своего упражнения" autocomplete="off">
@@ -609,7 +609,7 @@ li.ex.skipped .meta{margin:2px 0 0}
 
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
-<script src="cat.js?v=7c8934fc"></script>
-<script src="app.js?v=9fc7166f"></script>
+<script src="cat.js?v=8c3a7b9f"></script>
+<script src="app.js?v=634ba1f9"></script>
 </body>
 </html>

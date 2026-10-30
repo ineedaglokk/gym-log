@@ -770,9 +770,7 @@ function pnum(val,mode,onset,label){
 }
 function thumb(e){
   const x=e.lib&&LIBMAP[e.lib];
-  if(x)return pic(x,"pc-media");
-  if(e.g!=null&&e.g>=0)return tile({group:GROUPS[e.g],ei:e.q>=0?e.q:EQ_BODY},"pc-media ico");
-  return el("span","pc-media blank",(e.name||"?").slice(0,1).toUpperCase());
+  return pic(x,"pc-media");
 }
 function renderProgEditor(){
   const W=PW(),EX=W.ex;
@@ -793,7 +791,8 @@ function renderProgEditor(){
     const row=el("button","pc-open");row.type="button";row.setAttribute("aria-haspopup","dialog");
     const main=el("div","pc-main");
     main.append(el("h3",null,e.name),el("p","target",e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"")));
-    row.append(thumb(e),main);
+    {const t=thumb(e);if(t)row.append(t);else card.classList.add("nomedia");}
+    row.append(main);
     row.addEventListener("click",()=>{S.editKey=key;renderProgEditor();openSheet("exSheet");$("#exSheet .body").scrollTop=0;});
     card.append(row);
     list.append(card);
@@ -802,7 +801,7 @@ function renderProgEditor(){
       $("#exSheetTitle").textContent=W.name;
       const box=$("#exEditBody");box.textContent="";
       const card=box;
-      card.append(thumb(e));
+      {const t=thumb(e);if(t)card.append(t);}
       const name=el("input","pe-name");name.value=e.name;name.maxLength=60;name.setAttribute("aria-label","Название");
       name.addEventListener("input",()=>{e.name=name.value.slice(0,60);saveProg();});
       name.addEventListener("change",()=>{if(!name.value.trim())e.name="Упражнение";renderProgEditor();});
@@ -998,7 +997,7 @@ function renderEditList(W,list){
       if(!del.classList.contains("arm")){del.classList.add("arm");del.textContent="Убрать";armT=setTimeout(()=>{del.classList.remove("arm");del.textContent="✕";},3000);return;}
       clearTimeout(armT);EX.splice(i,1);haptic("hit");renderProgEditor();saveProg();toast("«"+e.name+"» убрано, записи по нему остались");
     });
-    row.append(h,thumb(e),main,up,dn,del);
+    {const t=thumb(e);row.append(h);if(t)row.append(t);row.append(main,up,dn,del);}
     list.append(row);
   });
 }
@@ -1160,18 +1159,14 @@ function openTech(libId,name){
   const x=LIBMAP[libId]||null;
   openUrl(x&&x.slug?FP_URL(x.slug):SETO_URL(name||(x&&x.name)||""));
 }
-/* card picture: fitpush's picture of the exercise page (loaded from fitpush.ru, not copied), then the
-   Free Exercise DB photo if there is one, then an equipment icon on the muscle-group colour */
-const FP_IMG=slug=>"https://fitpush.ru/assets/exercises/share-cards-v2/"+slug+".jpg";
+/* card picture: a real photo of this very exercise (Free Exercise DB, public domain), matched by
+   meaning, or nothing at all — no look-alike exercises, icons or banners. A photo that fails to load
+   is removed and the card stays text-only. */
 function pic(x,cls){
-  const srcs=[];
-  if(x.slug)srcs.push({u:FP_IMG(x.slug),fp:true});
-  if(x.img)srcs.push({u:imgSrc(x.img,0),fp:false});
-  if(!srcs.length)return tile(x,cls+" ico");
-  const w=el("span",cls+" photo"+(srcs[0].fp?" fp":""));const im=el("img");im.alt="";im.loading="lazy";im.decoding="async";
-  let k=0;
-  im.addEventListener("error",()=>{k++;if(k<srcs.length){w.classList.toggle("fp",srcs[k].fp);im.src=srcs[k].u;}else w.replaceWith(tile(x,cls+" ico"));});
-  im.src=srcs[0].u;
+  if(!x||!x.img)return null;
+  const w=el("span",cls+" photo");const im=el("img");im.alt="";im.loading="lazy";im.decoding="async";
+  im.addEventListener("error",()=>{const c=w.closest(".lc,.pc,.per");w.remove();if(c)c.classList.add("nomedia");},{once:true});
+  im.src=imgSrc(x.img,0);
   w.append(im);return w;
 }
 function libCard(x){
@@ -1179,7 +1174,9 @@ function libCard(x){
   const op=el("button","lc-open");op.type="button";
   op.setAttribute("aria-label","Открыть: "+x.name);
   const tx=el("span","lc-text");tx.append(el("span","lc-name",x.name),el("span","lc-eq",x.equip||""));
-  op.append(pic(x,"lc-media"),tx);
+  const ph=pic(x,"lc-media");
+  if(ph)op.append(ph);else c.classList.add("nomedia");
+  op.append(tx);
   op.addEventListener("click",()=>openTech(x.id));
   const on=inProg(x.id);
   const add=el("button","lc-add"+(on?" done":""),on?"✓":"+");add.type="button";
@@ -1194,6 +1191,7 @@ function renderLibList(){
   if(!hits.length){box.append(el("p","target","Ничего не нашлось. Можно добавить своё упражнение ниже."));return;}
   GROUPS.forEach(g=>{
     const hs=hits.filter(x=>x.group===g);if(!hs.length)return;
+    hs.sort((a,b)=>(a.img?0:1)-(b.img?0:1));   /* with a photo first (stable: alphabetical inside) */
     if(S.libGroup==="Все"||words.length)box.append(el("h4","libgroup",g+" · "+hs.length));
     const grid=el("div","libgrid");hs.forEach(x=>grid.append(libCard(x)));box.append(grid);
   });

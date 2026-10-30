@@ -1,4 +1,4 @@
-# One-off check: what a fitpush share card looks like (two small previews as text). Results go to annotations.
+# One-off check: which pictures and videos a fitpush exercise page shows. Results go to annotations.
 name: Check site
 on:
   push:
@@ -7,16 +7,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Previews
+      - name: Media on pages
         run: |
-          pip install -q pillow
-          cat > p.py <<'PY'
-          import urllib.request, io, base64
-          from PIL import Image
-          for sl in ["zhim-nogami","tyaga-gorizontalnogo-bloka-uzkaya-rukoyatka"]:
-              rq=urllib.request.Request(f"https://fitpush.ru/assets/exercises/share-cards-v2/{sl}.jpg",headers={"User-Agent":"Mozilla/5.0"})
-              im=Image.open(io.BytesIO(urllib.request.urlopen(rq,timeout=30).read())).convert("RGB")
-              im.thumbnail((420,420)); b=io.BytesIO(); im.save(b,"JPEG",quality=55); t=base64.b64encode(b.getvalue()).decode()
-              for i in range(0,len(t),3500): print(f"::notice title={sl} {i//3500:02d}::{t[i:i+3500]}")
+          cat > m.py <<'PY'
+          import urllib.request, re
+          for sl in ["zhim-nogami","tyaga-gorizontalnogo-bloka-uzkaya-rukoyatka","krab-s-rezinkoy","planka"]:
+              rq=urllib.request.Request(f"https://fitpush.ru/exercises/{sl}/",headers={"User-Agent":"Mozilla/5.0"})
+              h=urllib.request.urlopen(rq,timeout=30).read().decode("utf-8","ignore")
+              imgs=sorted(set(re.findall(r'<img[^>]+src="([^"]+)"',h)))
+              vids=sorted(set(re.findall(r'<(?:video|source)[^>]+src="([^"]+)"',h)+re.findall(r'(https?://[^"\']+\.(?:mp4|webm|gif))',h)))
+              yt=sorted(set(re.findall(r'(youtube(?:-nocookie)?\.com/embed/[\w-]+|youtu\.be/[\w-]+|rutube\.ru/[\w/-]+|vk\.com/video[\w-]+)',h)))
+              print(f"::notice title={sl}::imgs={[i for i in imgs if 'logo' not in i.lower()][:12]} | video={vids[:6]} | embeds={yt[:4]}")
           PY
-          python3 p.py
+          python3 m.py

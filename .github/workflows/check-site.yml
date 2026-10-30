@@ -1,4 +1,4 @@
-# One-off check: do the fitpush share-card image links exist for every exercise in cat.js? Results go to annotations.
+# One-off check: what a fitpush share card looks like (two small previews as text). Results go to annotations.
 name: Check site
 on:
   push:
@@ -7,43 +7,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - name: Check images
+      - name: Previews
         run: |
-          cat > chk.py <<'PY'
-          import json, re, urllib.request, concurrent.futures as cf, subprocess
-          s=open("cat.js",encoding="utf-8").read(); C=json.loads(s[s.index("window.CAT=")+11:s.rindex(";")])
-          slugs=[r[5] for r in C["x"]]
-          UA={"User-Agent":"Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"}
-          def get(u,n=None):
-              rq=urllib.request.Request(u,headers=dict(UA,**({"Range":"bytes=0-%d"%n} if n else {})))
-              try:
-                  with urllib.request.urlopen(rq,timeout=25) as r: return r.status,r.headers.get("Content-Type",""),r.headers.get("Content-Range") or r.headers.get("Content-Length",""),r.read()
-              except urllib.error.HTTPError as e: return e.code,"","",b""
-              except Exception as e: return 0,str(e)[:40],"",b""
-          def img(sl):
-              st,ct,ln,_=get(f"https://fitpush.ru/assets/exercises/share-cards-v2/{sl}.jpg",1023); return sl,st,ct,ln
-          with cf.ThreadPoolExecutor(12) as ex: res=list(ex.map(img,slugs))
-          ok=[r for r in res if r[1] in (200,206) and r[2].startswith("image")]
-          bad=[r for r in res if r not in ok]
-          def note(t,m): print(f"::notice title={t}::{m[:3800]}")
-          note("images",f"total={len(res)} ok={len(ok)} bad={len(bad)} statuses={sorted(set((r[1],r[2][:20]) for r in bad))[:10]}")
-          b=" ".join(r[0] for r in bad)
-          for i in range(0,min(len(b),15000),3600): note(f"bad slugs {i//3600+1}",b[i:i+3600])
-          # what the pages themselves give as their preview picture
-          same=diff=0;ex_=[]
-          for sl in slugs[::40]:
-              st,ct,ln,body=get(f"https://fitpush.ru/exercises/{sl}/")
-              m=re.search(rb'property="og:image"\s+content="([^"]+)"',body) or re.search(rb'content="([^"]+)"\s+property="og:image"',body)
-              og=m.group(1).decode() if m else None
-              if og and og.split("?")[0].endswith(f"/share-cards-v2/{sl}.jpg"): same+=1
-              else: diff+=1; ex_.append((sl,og))
-          note("og:image vs template",f"same={same} different={diff} examples={ex_[:5]}")
-          # size of a few pictures
-          dims=[]
-          for sl in slugs[:3]:
-              st,ct,ln,body=get(f"https://fitpush.ru/assets/exercises/share-cards-v2/{sl}.jpg")
-              open("x.jpg","wb").write(body); dims.append((sl,len(body),subprocess.run(["file","x.jpg"],capture_output=True,text=True).stdout.split(":",1)[1].strip()[:120]))
-          note("sample files",str(dims))
+          pip install -q pillow
+          cat > p.py <<'PY'
+          import urllib.request, io, base64
+          from PIL import Image
+          for sl in ["zhim-nogami","tyaga-gorizontalnogo-bloka-uzkaya-rukoyatka"]:
+              rq=urllib.request.Request(f"https://fitpush.ru/assets/exercises/share-cards-v2/{sl}.jpg",headers={"User-Agent":"Mozilla/5.0"})
+              im=Image.open(io.BytesIO(urllib.request.urlopen(rq,timeout=30).read())).convert("RGB")
+              im.thumbnail((420,420)); b=io.BytesIO(); im.save(b,"JPEG",quality=55); t=base64.b64encode(b.getvalue()).decode()
+              for i in range(0,len(t),3500): print(f"::notice title={sl} {i//3500:02d}::{t[i:i+3500]}")
           PY
-          python3 chk.py
+          python3 p.py

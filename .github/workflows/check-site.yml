@@ -1,4 +1,4 @@
-# One-off check: does fitpush.ru's exercise search take the query from the link? Results go to annotations.
+# One-off check: which URL parameters fitpush.ru's catalog script reads. Results go to annotations.
 name: Check site
 on:
   push:
@@ -9,24 +9,10 @@ jobs:
     steps:
       - name: Inspect
         run: |
-          UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Telegram-iOS'
-          note(){ echo "::notice title=$1::$(printf '%s' "$2" | tr '\n' ' ' | tr -s ' ' | cut -c1-3800)"; }
-          curl -sS -m 30 -L -A "$UA" -o page.html "https://fitpush.ru/exercises/"
-          mkdir js
-          for s in $(grep -io '<script[^>]*src="[^"]*"' page.html | grep -io 'src="[^"]*"' | sed 's/src="//;s/"$//'); do
-            case "$s" in http*) u="$s";; //*) u="https:$s";; /*) u="https://fitpush.ru$s";; *) u="https://fitpush.ru/exercises/$s";; esac
-            f="js/$(echo "$u" | md5sum | cut -c1-8).js"; curl -sS -m 20 -A "$UA" -o "$f" "$u" && echo "$u" > "$f.url"
-          done
-          grep -o '<script[^>]*>[^<]\{20,\}' page.html > js/inline.js || true
-          for f in js/*.js; do
-            u=$(cat "$f.url" 2>/dev/null || echo inline)
-            a=$(grep -o '.\{0,200\}exerciseSearch.\{0,400\}' "$f" | head -3)
-            [ -n "$a" ] && note "uses #exerciseSearch: $u" "$a"
-            b=$(grep -o '.\{0,60\}params\.get([^)]*).\{0,120\}' "$f" | head -8)
-            [ -n "$b" ] && note "params.get in $u" "$b"
-          done
-          for q in "q" "search" "s" "query"; do
-            curl -sS -m 30 -L -A "$UA" -o r.html "https://fitpush.ru/exercises/?$q=%D0%BF%D1%80%D0%B8%D1%81%D0%B5%D0%B4"
-            note "url ?$q=присед" "bytes=$(wc -c < r.html) same_as_plain=$(cmp -s page.html r.html && echo yes || echo no) value_in_html=$(grep -c 'value=\"присед' r.html)"
-          done
-          note "cards" "$(grep -o '<a[^>]*href="/exercises/[^"]*"[^>]*>' page.html | head -3) total=$(grep -o 'data-search="' page.html | wc -l)"
+          note(){ echo "::notice title=$1::$(printf '%s' "$2" | tr '\n' ' ' | tr -s ' ' | cut -c1-3900)"; }
+          curl -sS -m 30 -o c.js "https://fitpush.ru/assets/exercises/catalog-funnel.js?v=exercise-catalog-funnel-v9-remove-useful-guides"
+          note "size" "$(wc -c < c.js)"
+          note "around params.get(kind)" "$(grep -o '.\{0,900\}params\.get(kind).\{0,700\}' c.js | head -1)"
+          note "search handling" "$(grep -o '.\{0,300\}search\.\(value\|addEventListener\).\{0,500\}' c.js | head -2)"
+          note "kinds" "$(grep -o '.\{0,200\}\(\"q\"\|'"'"'q'"'"'\|\"search\"\|'"'"'search'"'"'\|\"muscle\"\|\"equipment\"\|\"place\"\).\{0,200\}' c.js | head -4)"
+          note "replaceState" "$(grep -o '.\{0,300\}\(replaceState\|pushState\).\{0,300\}' c.js | head -2)"

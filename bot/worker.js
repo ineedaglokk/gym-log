@@ -152,7 +152,7 @@ const str = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().sli
 function cleanItems(list, max) {
   if (!Array.isArray(list)) return [];
   return list.slice(0, max).map(x => x && typeof x === "object" ? {
-    n: str(x.n, 60), now: str(x.now, 48), was: str(x.was, 48), d: str(x.d, 12), r: !!x.r
+    n: str(x.n, 60), now: str(x.now, 48), was: str(x.was, 48), d: str(x.d, 12), r: !!x.r, l: !!x.l
   } : null).filter(x => x && x.n && x.now && x.was);
 }
 async function onWorkout(req, env) {
@@ -232,7 +232,7 @@ function fill(t, u, vars) {
 }
 
 /* ---------- the report after a workout ---------- */
-const line = x => `• ${x.n} — ${x.now}, а ${x.d} было ${x.was}${x.r ? " 🏆" : ""}`;
+const line = x => `• ${x.n} — ${x.now}, а ${x.d} было ${x.was}${x.l ? " — вес прокачан ⬆" : ""}${x.r ? " 🏆" : ""}`;
 function reportText(u, rep) {
   const tips = rep.tips || [];
   const tipBlock = tips.length ? "\n\n💡 На заметку:\n" + tips.map(x => `• ${x.n}: ${x.t.charAt(0).toLowerCase() + x.t.slice(1)}.`).join("\n") : "";

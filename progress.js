@@ -15,11 +15,16 @@
      (Epley; one rep ≈ 3% of the weight), only while both sets are ≤ 12 reps — above that rep↔weight
      formulas break down, so such trade-offs are "can't tell". The number is never shown.
    - Bodyweight moves add the logged body weight to the extra weight (the same body weight for both sides,
-     so losing weight never looks like getting weaker); holds and cardio compare time. */
+     so losing weight never looks like getting weaker); holds and cardio compare time.
+   - People, not machines: a drop with an obvious reason is not "просело" — the exercise was done in a
+     superset one time and on its own the other time (pre-fatigue, shorter rest), or it comes after a
+     break of more than two weeks. Drop sets (x.dr) never count: they come after the last working set
+     and are done to failure, so the working sets are compared as they are. */
 (function(root){
 "use strict";
 
-const UP_NOISE=0.02,DOWN_NOISE=0.04,REP_CAP=12,REF_BW=70;
+const UP_NOISE=0.02,DOWN_NOISE=0.04,REP_CAP=12,REF_BW=70,BREAK_DAYS=14;
+const dayGap=(a,b)=>Math.round((Date.parse(b+"T00:00:00Z")-Date.parse(a+"T00:00:00Z"))/864e5);
 
 const fmt=v=>v==null?"—":String(Math.round(v*100)/100).replace(".",",");
 const signed=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(Math.round(v*100)/100));
@@ -79,9 +84,10 @@ function allSetsText(e,ss){
 
 /* compares two workouts of one exercise (a — earlier, b — later); null when there is nothing to compare.
    v: 1 better, -1 weaker, 0 the same. why: "best" — by the best set; "work" — best set the same, more done
-   in total; "mixed" — best set weaker but more done in total, so not a drop.
+   in total; "mixed" — best set weaker but more done in total, so not a drop; "ss" / "break" — weaker, but
+   the conditions changed (superset on one side only — x.ss; ctx.gap days since a — a break), so not a drop.
    one: every working set of both workouts on one weight — then all the reps are shown, not just the best. */
-function judge(e,xa,xb,bw){
+function judge(e,xa,xb,bw,ctx){
   const A=setsOf(e,xa,bw),B=setsOf(e,xb,bw);
   if(!A.length||!B.length)return null;
   const a=bestOf(e,A.concat(warmOf(e,xa,bw))),b=bestOf(e,B.concat(warmOf(e,xb,bw)));
@@ -89,6 +95,10 @@ function judge(e,xa,xb,bw){
   const wa=workOf(e,A),wb=workOf(e,B);
   if(v===0&&wb>wa*(1+UP_NOISE)){v=1;why="work";}
   else if(v<0&&wb>=wa){v=0;why="mixed";}
+  if(v<0){
+    if(!!xa.ss!==!!xb.ss){v=0;why="ss";}
+    else if(ctx&&ctx.gap>BREAK_DAYS){v=0;why="break";}
+  }
   const one=!isTime(e)&&!a.wu&&!b.wu&&A.concat(B).every(s=>s.w===a.w);
   const res={v:v,why:why,one:one,a:a,b:b,A:A,B:B};
   const all=one||why==="work";
@@ -160,7 +170,8 @@ function rampTip(e,x,bw){
    start = the better of the base workouts (or the period's first workout when there is no base),
    end = the better of the period's last two — one weak day does not hide a month of growth.
    "down" only when both of the last two workouts are weaker than the start (two in a row), never from a
-   single workout. dip: the last workout clearly weaker than the one before — a soft note, not a verdict. */
+   single workout, and not after a break of more than BREAK_DAYS on the way. dip: the last workout clearly
+   weaker than the one before (for no obvious reason, see judge) — a soft note, not a verdict. */
 function periodTrend(e,pts,base,bw){
   const better=(p,q)=>{const j=judge(e,p.x,q.x,bw);return j&&j.v>0?q:p;};
   const pickBest=list=>list.reduce((p,q)=>better(p,q));
@@ -171,13 +182,15 @@ function periodTrend(e,pts,base,bw){
   const start=pickBest(startPool),end=pickBest(endPool);
   const j=judge(e,start.x,end.x,bw);
   if(!j)return null;
-  const kind=j.v>0?"up":(j.v<0&&endPool.length>=2?"down":null);
   const seq=(base||[]).concat(pts),last=seq[seq.length-1],prev=seq[seq.length-2];
-  const jd=prev&&kind!=="down"?judge(e,prev.x,last.x,bw):null;
+  const i0=seq.indexOf(start),i1=seq.indexOf(end);
+  const brk=seq.some((p,i)=>i>i0&&i<=i1&&dayGap(seq[i-1].d,p.d)>BREAK_DAYS);
+  const kind=j.v>0?"up":(j.v<0&&endPool.length>=2&&!brk?"down":null);
+  const jd=prev&&kind!=="down"?judge(e,prev.x,last.x,bw,{gap:dayGap(prev.d,last.d)}):null;
   return {kind:kind,j:j,start:start,end:end,last:last,dip:jd&&jd.v<0?{prev:prev,j:jd}:null};
 }
 
-const api={UP_NOISE,DOWN_NOISE,REP_CAP,fmt,signed,isTime,isBody,wtText,e1rm,setsOf,setScore,bestOf,bestAll,workOf,
+const api={UP_NOISE,DOWN_NOISE,REP_CAP,BREAK_DAYS,dayGap,fmt,signed,isTime,isBody,wtText,e1rm,setsOf,setScore,bestOf,bestAll,workOf,
   cmpSets,setText,setChip,allSetsText,judge,deltaText,levelUp,topSet,rampTip,periodTrend};
 root.GymProgress=api;
 if(typeof module!=="undefined"&&module.exports)module.exports=api;

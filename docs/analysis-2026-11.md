@@ -3,7 +3,8 @@
 Why: the user felt the progress logic "loses" progress and is not science-based, and there is no way to log
 supersets / drop sets. This doc: what is wrong in our math (verified on seeded data in the live app), what
 competitors and the literature say, and a proposed design. Implemented 2026-11-07: §2 items 1–4 (month vs end of previous month instead of a rolling
-window, best of last two, noise band, 12-rep cap, all reps on one weight). The rest is not implemented yet.
+window, best of last two, noise band, 12-rep cap, all reps on one weight) and §3 (drop sets, supersets, replace
+with a history choice, today's substitute; plus no drop after a superset change or a 2+ week break). The rest is not implemented yet.
 
 ## 1. Our progress logic: what is wrong
 

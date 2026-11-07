@@ -33,7 +33,7 @@ Telegram Mini App: a full-body workout journal (sets, weights, reps, progress, y
 - `README.md` — full feature/progress-logic description (RU). `ОПИСАНИЕ.md` — short RU summary, local only (not in repo).
 
 ## Data
-- CloudStorage keys: `program` (user program), `remind` (bot settings, `v:2`), `w_YYYY-MM-DD` (one workout: `{date,bw,ex:{<exId>:{w:[],r:[],wu:{}}}}`). App refuses values >4000 chars.
+- CloudStorage keys: `program` (user program; exercise options at [11] `{l,d,p}` = superset link, drops, replaced exercise), `remind` (bot settings, `v:2`), `w_YYYY-MM-DD` (one workout: `{date,bw,wk,ex:{<exId>:{w,r,wu,dr,nt}},sk,sb,xd,ss}`). App refuses values >4000 chars.
 - localStorage: `tg-gym-log-v1`, `tg-gym-prog-v1`, `tg-gym-remind-sync`.
 - Bot KV: `user:<telegramId>` → settings (on, fun, hour, tz, days), mood/sick state, pending report `rep`, seen phrases.
 - Bot only receives reminder settings and today's best-set comparison, never the full journal.
@@ -53,6 +53,7 @@ Telegram Mini App: a full-body workout journal (sets, weights, reps, progress, y
 - Done: live and working (last deploy 2026-11-02: manual weight "Прокачано", 7.5 = 7,5). Both live URLs answer.
 - In progress: nothing.
 - Git: folder connected to `origin` = `ineedaglokk/gym-log` (2026-11-07), `main` tracks `origin/main`, tree identical to remote. `CLAUDE.md` and `ОПИСАНИЕ.md` are untracked.
-- Done 2026-11-07: progress v2 (noise band, 12-rep cap, month vs previous month, "Просело" only twice in a row) — not pushed yet.
-- Next step: per docs/analysis-2026-11.md — drop sets, supersets, then effort tap / weekly sets per muscle / record toast.
-- Open issues: «⇄ Заменить» carries history (needs user's call); `app.js` ~1460 lines; KV free tier caps bot users. Details in DEVLOG.
+- Done 2026-11-07: progress v2 (noise band, 12-rep cap, month vs previous month, "Просело" only twice in a row) — live (commit b90fd56).
+- Done 2026-11-07: drop sets, supersets, replace with history choice + today's substitute, no «просело» after superset change / 2-week break — not pushed yet.
+- Next step: per docs/analysis-2026-11.md — effort tap, weekly sets per muscle, record toast, rest timer.
+- Open issues: `app.js` ~1670 lines (split by screen = separate task); KV free tier caps bot users. Details in DEVLOG.

@@ -2,7 +2,7 @@
 "use strict";
 /* progress math lives in progress.js (loaded first) */
 const {fmt,signed,isTime,isBody,wtText,setsOf,setScore,bestAll,cmpSets,setText,setChip,judge,deltaText,
-  levelUp,topSet,rampTip,periodTrend}=window.GymProgress;
+  levelUp,topSet,rampTip,periodTrend,dayGap,BREAK_DAYS}=window.GymProgress;
 
 /* ================= data: library and program ================= */
 const UNITS=["кг","кг в руке","свой вес + кг","секунды","минуты"];
@@ -81,23 +81,36 @@ function cleanEx(e){
     const g=Number(e.g),q=Number(e.q);
     if(Number.isInteger(g)&&g>=0&&g<GROUPS.length){own.g=g;own.q=Number.isInteger(q)&&q>=0&&q<CAT.e.length?q:-1;}
   }
-  return Object.assign(own,{id:id,lib:lib,name:name,
+  const out=Object.assign(own,{id:id,lib:lib,name:name,
     sets:Math.round(clampNum(e.sets,1,6,3)),lo:lo,hi:hi,step:clampNum(e.step,0,100,2.5),
     start:clampNum(e.start,0,1000,0),unit:UNITS.indexOf(e.unit)>=0?e.unit:"кг"});
+  /* technique: ln — in a superset with the next exercise (its id; void once they are no longer next to each
+     other), dr — drop sets after the last working set (0–3), pv — the exercise this slot had before
+     «Заменить» with a fresh history (packed, for the "раньше здесь было" hint and old progress) */
+  const ln=safeId(e.ln);if(ln&&ln!==id)out.ln=ln;
+  const dr=Math.round(clampNum(e.dr,0,3,0));if(dr&&!isTime(out))out.dr=dr;
+  if(Array.isArray(e.pv)&&safeId(e.pv[0])&&safeId(e.pv[0])!==id)out.pv=e.pv.slice(0,11);
+  return out;
 }
+/* one exercise in the compact form: [id,name,sets,lo,hi,step,start,unit,lib,(g,q),(options)] */
+function packEx(e){
+  const a=[e.id,e.name,e.sets,e.lo,e.hi,e.step,e.start,UNITS.indexOf(e.unit),e.lib||0];
+  if(!e.lib&&e.g!=null)a.push(e.g,e.q!=null?e.q:-1);
+  const o={};if(e.ln)o.l=e.ln;if(e.dr)o.d=e.dr;if(e.pv)o.p=e.pv;
+  if(Object.keys(o).length){while(a.length<11)a.push(-1);a.push(o);}
+  return a;
+}
+const unpackEx=b=>{const o=b[11]&&typeof b[11]==="object"?b[11]:{};
+  return {id:b[0],name:b[1],sets:b[2],lo:b[3],hi:b[4],step:b[5],start:b[6],unit:UNITS[b[7]]||"кг",lib:b[8]||null,g:b[9],q:b[10],ln:o.l,dr:o.d,pv:o.p};};
 /* compact form, used both for storage and for share codes */
 function packProg(){
   /* [9] muscle group and [10] equipment — only for one's own exercises (catalog ones take them from the catalog) */
-  return {v:2,w:PROG.workouts.map(w=>[w.id,w.name,w.days,w.ex.map(e=>{
-    const a=[e.id,e.name,e.sets,e.lo,e.hi,e.step,e.start,UNITS.indexOf(e.unit),e.lib||0];
-    if(!e.lib&&e.g!=null)a.push(e.g,e.q!=null?e.q:-1);
-    return a;})])};
+  return {v:2,w:PROG.workouts.map(w=>[w.id,w.name,w.days,w.ex.map(packEx)])};
 }
 function unpackProg(o){
   if(!o)return null;
-  const ex=b=>({id:b[0],name:b[1],sets:b[2],lo:b[3],hi:b[4],step:b[5],start:b[6],unit:UNITS[b[7]]||"кг",lib:b[8]||null,g:b[9],q:b[10]});
-  if(o.v===2&&Array.isArray(o.w))return {workouts:o.w.map(a=>({id:a[0],name:a[1],days:a[2],ex:(a[3]||[]).map(ex)}))};
-  if(Array.isArray(o.e))return {workouts:[{id:"full",name:"Тренировка",days:o.d,ex:o.e.map(ex)}]};   /* first share-code format */
+  if(o.v===2&&Array.isArray(o.w))return {workouts:o.w.map(a=>({id:a[0],name:a[1],days:a[2],ex:(a[3]||[]).map(unpackEx)}))};
+  if(Array.isArray(o.e))return {workouts:[{id:"full",name:"Тренировка",days:o.d,ex:o.e.map(unpackEx)}]};   /* first share-code format */
   return o;
 }
 function cleanProg(p){
@@ -189,7 +202,7 @@ const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
-  libGroup:"Все",libQuery:"",editKey:null,repl:null,pwi:0,logW:null,curW:null,wuN:{},noteOpen:{},lvl:{},sk:new Set(),skDate:null};
+  libGroup:"Все",libQuery:"",editKey:null,repl:null,pwi:0,logW:null,curW:null,wuN:{},drN:{},noteOpen:{},lvl:{},sk:new Set(),skDate:null,sb:{},xd:{},subGone:new Set(),subFor:null,shown:[]};
 
 /* ================= storage ================= */
 const tg=window.Telegram&&window.Telegram.WebApp?window.Telegram.WebApp:null;
@@ -233,13 +246,16 @@ function persist(date,body){
 
 /* ================= records ================= */
 /* Old records kept one weight per exercise; newer ones keep a weight per set. */
-/* Warm-up sets live in x.wu = {w:[…], r:[…]}; x.w / x.r are the working sets. */
+/* Warm-up sets live in x.wu = {w:[…], r:[…]}; x.w / x.r are the working sets; drop sets after the last
+   working set — x.dr, same shape as warm-ups. A day may also keep: ss — superset groups done that day
+   ([[id,id],…]), sb — today's substitutes {planned id: substitute id}, xd — packed substitutes that are
+   not in the program, so their history can still be shown. */
 function norm(x,n){
   if(!x)return null;
   const r=Array.isArray(x.r)?x.r:[];
   const len=Math.max(n||0,r.length,Array.isArray(x.w)?x.w.length:0,1);
   const w=Array.isArray(x.w)?x.w:seq(len).map(()=>x.w);
-  return {w:seq(len).map(i=>w[i]==null?null:w[i]),r:seq(len).map(i=>r[i]==null?null:r[i]),wu:normWu(x.wu)};
+  return {w:seq(len).map(i=>w[i]==null?null:w[i]),r:seq(len).map(i=>r[i]==null?null:r[i]),wu:normWu(x.wu),dr:normWu(x.dr)};
 }
 function normWu(u){
   if(!u||!Array.isArray(u.r))return null;
@@ -260,12 +276,16 @@ function lastNote(id,date){
   }
   return note?{d:bd,t:note}:null;
 }
+/* was this exercise done in a superset that day */
+const inSS=(doc,id)=>!!(doc&&Array.isArray(doc.ss)&&doc.ss.some(g=>Array.isArray(g)&&g.indexOf(id)>=0));
+/* one exercise of a day, normalised, with the day's conditions the comparisons need */
+const recOf=(doc,id,n)=>Object.assign(norm(doc.ex[id],n),{ss:inSS(doc,id)});
 function prevEntry(id,date,n){
   let best=null;
   for(const [d,doc] of S.docs){
     if(d>=date)continue;
     const x=doc.ex&&doc.ex[id];
-    if(hasSets(x)&&(!best||d>best.d))best=Object.assign({d:d},norm(x,n));
+    if(hasSets(x)&&(!best||d>best.d))best=Object.assign({d:d},recOf(doc,id,n));
   }
   return best;
 }
@@ -350,7 +370,13 @@ function renderLog(){
   $("#toToday").hidden=S.date===t;
 
   const doc=S.docs.get(S.date)||null;
-  if(S.skDate!==S.date){S.sk=new Set(doc&&Array.isArray(doc.sk)?doc.sk:[]);S.skDate=S.date;}
+  if(S.skDate!==S.date){   /* the day's skips and substitutes are read from its record once, then kept while editing */
+    S.sk=new Set(doc&&Array.isArray(doc.sk)?doc.sk:[]);
+    S.sb=Object.assign({},doc&&doc.sb&&typeof doc.sb==="object"?doc.sb:{});
+    S.xd=Object.assign({},doc&&doc.xd&&typeof doc.xd==="object"?doc.xd:{});
+    S.subGone=new Set();S.skDate=S.date;
+  }
+  S.shown=[];
   $("#bwInput").value=doc&&doc.bw!=null?fmt(doc.bw):"";
   $("#delBtn").hidden=!doc;$("#delConfirm").hidden=true;
 
@@ -358,15 +384,24 @@ function renderLog(){
   const list=$("#exList");list.textContent="";
   if(!totalEx()){list.append(welcomeCard());return;}
   if(!EX.length){list.append(el("li","empty","В тренировке «"+W.name+"» пока нет упражнений. Собери её во вкладке «Программа»."));return;}
-  EX.forEach((e,i)=>{
-    if(S.sk.has(e.id)){list.append(skippedCard(e));return;}
+  const tags=ssTags(W);
+  EX.forEach(slot=>{
+    const tag=tags[slot.id]||null;
+    if(tag&&tag.k===1)list.append(ssHead(tag));
+    let e=slot,sub=null;
+    if(S.sk.has(slot.id)){
+      sub=subFor(slot);
+      if(!sub){list.append(skippedCard(slot,tag));return;}
+      e=sub;   /* machine busy: today's substitute takes the slot, with its own history */
+    }
+    S.shown.push(e);
     const prev=prevEntry(e.id,S.date,e.sets);
     const sg=suggestSets(e,prev);
     const cur=doc&&doc.ex&&doc.ex[e.id]?norm(doc.ex[e.id],e.sets):null;
-    const li=el("li","ex");li.dataset.id=e.id;
+    const li=el("li","ex"+(sub?" sub":"")+ssCls(tag));li.dataset.id=e.id;
 
     const head=el("div","exhead");
-    head.append(el("h3",null,e.name));
+    {const h3=el("h3");if(tag)h3.append(el("span","sstag",tag.g+tag.k));h3.append(e.name);head.append(h3);}
     const pn=lastNote(e.id,S.date),myNote=doc&&doc.ex&&doc.ex[e.id]&&doc.ex[e.id].nt||"";
     const btns=el("div","exbtns");
     const nb=el("button","nbtn"+(pn?" has":"")+(myNote?" mine":""));nb.type="button";
@@ -375,17 +410,20 @@ function renderLog(){
     const open=!!S.noteOpen[e.id];nb.setAttribute("aria-expanded",String(open));
     btns.append(nb);
     {const ib=el("button","ibtn","i");ib.type="button";ib.setAttribute("aria-label","Техника: "+e.name);ib.addEventListener("click",()=>openTech(e.lib,e.name));btns.append(ib);}
-    {/* ✕ — skip this exercise today (machine taken, no time…); sets already typed need a second tap */
-      const xb=el("button","skipbtn","✕");xb.type="button";xb.setAttribute("aria-label","Пропустить сегодня: "+e.name);
+    {/* ✕ — skip this exercise today (machine taken, no time…); on a substitute — take the substitute away.
+        Sets already typed need a second tap */
+      const xb=el("button","skipbtn","✕");xb.type="button";
+      xb.setAttribute("aria-label",(sub?"Убрать замену: ":"Пропустить сегодня: ")+e.name);
       let armT=null;
       xb.addEventListener("click",()=>{
-        const typed=[...li.querySelectorAll("input.num")].some(n=>/^(r|u)-/.test(n.id)&&n.value.trim()!=="");
+        const typed=[...li.querySelectorAll("input.num")].some(n=>/^(r|u|dr)-/.test(n.id)&&n.value.trim()!=="");
         if(typed&&!xb.classList.contains("armed")){
-          xb.classList.add("armed");xb.textContent="Пропустить?";haptic("tap");
+          xb.classList.add("armed");xb.textContent=sub?"Убрать?":"Пропустить?";haptic("tap");
           toast("Нажми ещё раз — подходы за сегодня по этому упражнению удалятся");
           armT=setTimeout(()=>{xb.classList.remove("armed");xb.textContent="✕";},3500);return;
         }
-        clearTimeout(armT);setSkip(e.id,true);
+        clearTimeout(armT);
+        if(sub)removeSub(slot);else setSkip(e.id,true);
       });
       btns.append(xb);}
     head.append(btns);
@@ -401,10 +439,25 @@ function renderLog(){
     li.append(nbox);
     const goal=(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"");
     const prevWuText=prev&&prev.wu?"разминка "+setsText(prev.wu,e).replace(/ · /g,", ")+" → ":"";
-    const lv=levelUp(e,prev),lkey=S.date+"|"+e.id;
+    /* after a break of 2+ weeks nothing invites going heavier: first get back to where it was */
+    const back=!!prev&&dayGap(prev.d,S.date)>BREAK_DAYS;
+    const lv=back?null:levelUp(e,prev),lkey=S.date+"|"+e.id;
     /* weight raised by hand last time (40/45/50): just a reminder, the weights stay as they were */
     const startText=lv&&lv.kind==="start"?" — можно сразу начать с "+wtText(e,lv.to):"";
-    li.append(el("p","meta",prev?"прошлый раз "+prevWuText+setsText(prev,e)+startText:"цель "+goal+(isTime(e)?"":" повт.")));
+    const prevDrText=prev&&prev.dr?" → дроп "+setsText(prev.dr,e).replace(/ · /g,", "):"";
+    if(sub)li.append(el("p","meta subnote","вместо «"+slot.name+"» · только сегодня"));
+    let first="цель "+goal+(isTime(e)?"":" повт.");
+    if(!prev&&e.pv){   /* replaced with a fresh history: what this slot had, to pick a first weight */
+      const pe=cleanEx(unpackEx(e.pv)),op=prevEntry(pe.id,S.date,pe.sets);
+      if(op)first="раньше здесь было «"+pe.name+"»: "+setsText(op,pe)+" — подбери вес для первого раза";
+    }
+    li.append(el("p","meta",prev?"прошлый раз "+prevWuText+setsText(prev,e)+prevDrText+startText:first));
+    /* people, not machines: say why today may differ from last time (the progress does not call it a drop) */
+    if(prev){
+      const gap=dayGap(prev.d,S.date),now=!!tag;
+      if(back)li.append(el("p","hint","Последний раз "+gap+" "+plural(gap,"день","дня","дней")+" назад — после перерыва начни чуть легче, за 1–2 тренировки вернёшься к прежнему"));
+      else if(now!==!!prev.ss)li.append(el("p","hint",now?"Прошлый раз — без суперсета: сегодня повторов может быть чуть меньше, это нормально":"Прошлый раз был суперсет — сегодня отдельно, повторов может быть больше"));
+    }
     /* «Прокачать» — the only button: every set last time at one weight and at the top of the range,
        and today's sets of this exercise not started yet */
     const up=lv&&lv.kind==="up"?lv:null;
@@ -420,7 +473,9 @@ function renderLog(){
     const wkey=S.date+"|"+e.id,canWu=!isTime(e);
     const curWu=cur&&cur.wu,prevWu=prev&&prev.wu;
     const nWu=!canWu?0:(S.wuN[wkey]!=null?S.wuN[wkey]:Math.max(curWu?curWu.r.length:0,prevWu?prevWu.r.length:0));
-    const cols=Math.max(e.sets,nWu);
+    const curDr=cur&&cur.dr,prevDr=prev&&prev.dr;
+    const nDr=!canWu?0:(S.drN[wkey]!=null?S.drN[wkey]:Math.max(curDr?curDr.r.length:0,prevDr?prevDr.r.length:0,e.dr||0));
+    const cols=Math.max(e.sets,nWu,nDr);
     const grid=el("div","sets");grid.style.gridTemplateColumns="auto repeat("+cols+",minmax(0,1fr))";
     const pad0=n=>{for(let k=n;k<cols;k++)grid.append(el("span"));};
     if(nWu){
@@ -505,6 +560,32 @@ function renderLog(){
       }
       pad0(e.sets);
     }
+    if(nDr){
+      /* drop sets: right after the last working set, ~25% lighter each, to failure. They never count in the
+         progress, «Прокачать» or "all sets at the top" — the working sets are judged as they are */
+      grid.append(el("span","wusep"));
+      const lastW=()=>{for(let k=wins.length-1;k>=0;k--){const v=numv(wins[k].value);if(v!=null)return v;}return null;};
+      const st=e.step>0?e.step:(e.unit==="кг"?2.5:1);
+      const guess=k=>{const w0=lastW();if(!w0)return null;return Math.max(0,Math.round(w0*Math.pow(0.75,k+1)/st)*st);};
+      grid.append(el("span","lab dr","дроп"));
+      for(let k=0;k<nDr;k++){
+        const r=el("input","num dr");r.id="dr-"+e.id+"-"+k;r.inputMode="numeric";r.autocomplete="off";
+        r.setAttribute("aria-label",e.name+": дроп "+(k+1)+", повторы");
+        const v=curDr&&curDr.r[k]!=null?curDr.r[k]:null;r.value=v==null?"":String(v);
+        r.placeholder=prevDr&&prevDr.r[k]!=null?String(prevDr.r[k]):"";
+        grid.append(r);
+      }
+      pad0(nDr);
+      grid.append(el("span","lab dr",isBody(e)?"+кг":"кг"));
+      for(let k=0;k<nDr;k++){
+        const w=el("input","num wt dr");w.id="dw-"+e.id+"-"+k;w.inputMode="decimal";w.autocomplete="off";
+        w.setAttribute("aria-label",e.name+": дроп "+(k+1)+", вес");
+        const v=curDr&&curDr.r[k]!=null?curDr.w[k]:(prevDr&&prevDr.w[k]!=null?prevDr.w[k]:guess(k));
+        w.value=v==null?"":fmt(v);w.addEventListener("change",()=>normNum(w));
+        grid.append(w);
+      }
+      pad0(nDr);
+    }
     if(ptop&&wins.length){
       /* the lifter decides: «Прокачать» moves every set not done yet to the new weight; once heavier than
          last time (by the button or typed by hand) it reads «Прокачано до …», and «вернуть» undoes it */
@@ -525,28 +606,73 @@ function renderLog(){
     paintAll();
     if(canWu){
       const row=el("div","wurow");
-      const add=el("button","wubtn","+ разминка");add.type="button";add.disabled=nWu>=4;
-      add.setAttribute("aria-label","Добавить разминочный подход: "+e.name);
-      add.addEventListener("click",()=>{flush();S.wuN[wkey]=Math.min(4,nWu+1);haptic("tap");renderLog();const n=$("#u-"+e.id+"-"+nWu);if(n)n.focus();});
-      row.append(add);
-      if(nWu){
-        const del=el("button","wubtn quiet","− убрать");del.type="button";
-        del.setAttribute("aria-label","Убрать последний разминочный подход: "+e.name);
-        del.addEventListener("click",()=>{flush();S.wuN[wkey]=nWu-1;haptic("tap");renderLog();onEdit();});
-        row.append(del);
-      }
+      const btn=(txt,cls,lab,dis,fn)=>{const b=el("button","wubtn"+(cls?" "+cls:""),txt);b.type="button";b.disabled=!!dis;b.setAttribute("aria-label",lab+": "+e.name);
+        b.addEventListener("click",()=>{flush();fn();haptic("tap");renderLog();});row.append(b);return b;};
+      btn("+ разминка","","Добавить разминочный подход",nWu>=4,()=>{S.wuN[wkey]=Math.min(4,nWu+1);setTimeout(()=>{const n=$("#u-"+e.id+"-"+nWu);if(n)n.focus();});});
+      if(nWu)btn("− разминка","quiet","Убрать последний разминочный подход",false,()=>{S.wuN[wkey]=nWu-1;setTimeout(onEdit);});
+      btn("+ дроп","","Добавить дроп-сет после последнего подхода",nDr>=3,()=>{S.drN[wkey]=Math.min(3,nDr+1);setTimeout(()=>{const n=$("#dr-"+e.id+"-"+nDr);if(n)n.focus();});});
+      if(nDr)btn("− дроп","quiet","Убрать последний дроп",false,()=>{S.drN[wkey]=nDr-1;setTimeout(onEdit);});
       li.append(row);
     }
     list.append(li);
   });
 }
-function skippedCard(e){
-  const li=el("li","ex skipped");li.dataset.id=e.id;
-  const txt=el("div","sk-text");txt.append(el("h3",null,e.name),el("p","meta","Пропущено сегодня"));
+function skippedCard(e,tag){
+  const li=el("li","ex skipped"+ssCls(tag));li.dataset.id=e.id;
+  const txt=el("div","sk-text");
+  {const h3=el("h3");if(tag)h3.append(el("span","sstag",tag.g+tag.k));h3.append(e.name);txt.append(h3,el("p","meta","Пропущено сегодня"));}
+  const bx=el("div","sk-btns");
+  const sw=el("button","btn small","⇄ Другое");sw.type="button";sw.setAttribute("aria-label","Сделать другое упражнение вместо: "+e.name);
+  sw.addEventListener("click",()=>{flush();openLib({sub:e.id});});
   const b=el("button","btn small","Вернуть");b.type="button";b.setAttribute("aria-label","Вернуть упражнение: "+e.name);
   b.addEventListener("click",()=>setSkip(e.id,false));
-  li.append(txt,b);
+  bx.append(sw,b);li.append(txt,bx);
   return li;
+}
+/* superset groups of a workout: exercises linked to the next one, in a row. tag: {g:"A", k: place 1…n, n} */
+const linked=(W,i)=>!!(W.ex[i+1]&&W.ex[i].ln===W.ex[i+1].id);
+function ssTags(W){
+  const out={};let letter=0;
+  for(let i=0;i<W.ex.length;i++){
+    let j=i;while(linked(W,j))j++;
+    if(j>i){const g=String.fromCharCode(65+letter++);for(let k=i;k<=j;k++)out[W.ex[k].id]={g:g,k:k-i+1,n:j-i+1};i=j;}
+  }
+  return out;
+}
+const ssCls=tag=>tag?" ss"+(tag.k===1?" ss-first":"")+(tag.k===tag.n?" ss-last":""):"";
+function ssHead(tag){
+  const li=el("li","sshead");
+  li.append(el("b",null,(tag.n>2?"Круг ":"Суперсет ")+tag.g),el("span",null,"по подходу из каждого, отдых после круга"));
+  return li;
+}
+/* today's substitute for a planned exercise (machine busy): a separate exercise with its own history;
+   the planned one is skipped for the day and its progress is untouched */
+function subFor(slot){
+  const id=S.sb[slot.id];if(!id)return null;
+  return allEx().find(x=>x.id===id)||(Array.isArray(S.xd[id])?cleanEx(unpackEx(S.xd[id])):null);
+}
+function pickSub(to){
+  const W=S.curW,slot=W&&W.ex.find(e=>e.id===S.subFor);
+  if(!slot){S.subFor=null;closeSheet();return;}
+  if(to.lib&&W.ex.some(e=>e.lib===to.lib&&e.id!==slot.id)){toast("«"+to.name+"» уже есть в этой тренировке");return;}
+  let def=to.lib?allEx().find(e=>e.lib===to.lib):null;   /* already in the program: same exercise, same history */
+  const fresh=!def;
+  if(fresh){
+    const lx=to.lib?LIBMAP[to.lib]:null,d=lx||catDefaults(GROUPS[to.g],CAT.e[to.q],to.u||0);
+    let id=to.lib?safeId(to.lib):"";   /* the id a catalog exercise gets in a program, so its history joins up later */
+    if(!id||allEx().some(e=>e.id===id))id=rid("x");
+    def=cleanEx({id:id,lib:to.lib||null,name:to.name,g:to.g,q:to.q,sets:slot.sets,lo:d.lo,hi:d.hi,step:d.step,unit:d.unit,start:0});
+  }
+  S.sb[slot.id]=def.id;if(fresh)S.xd[def.id]=packEx(def);else delete S.xd[def.id];
+  S.subGone.delete(def.id);S.subFor=null;
+  closeSheet();haptic("hit");renderLog();onEdit();flush();
+  toast("Сегодня «"+def.name+"» вместо «"+slot.name+"» — у него своя история");
+}
+function removeSub(slot){
+  const id=S.sb[slot.id];if(!id)return;
+  flush();delete S.sb[slot.id];delete S.xd[id];S.subGone.add(id);S.sk.delete(slot.id);
+  haptic("tap");renderLog();onEdit();flush();
+  toast("Замена убрана — «"+slot.name+"» снова в плане");
 }
 function setSkip(id,on){
   flush();
@@ -557,22 +683,32 @@ function setSkip(id,on){
   if(on)toast("Пропущено сегодня — в следующий раз будет как обычно");
 }
 function collect(){
-  const W=S.curW||logWorkout(),EX=W.ex;
+  const W=S.curW||logWorkout(),shown=S.shown;
   const ex={};let any=false;
-  EX.forEach(e=>{
+  const pairs=(a,b,n)=>{const ww=[],rr=[];for(let k=0;k<n;k++){const rn=$("#"+a+k);if(!rn)break;const rv=intv(rn.value);if(rv==null)continue;const wn=$("#"+b+k);rr.push(rv);ww.push(wn?numv(wn.value):null);}return rr.length?{w:ww,r:rr}:null;};
+  shown.forEach(e=>{
     const r=seq(e.sets).map(k=>{const n=$("#r-"+e.id+"-"+k);return n?intv(n.value):null;});
     const w=seq(e.sets).map(k=>{const n=$("#w-"+e.id+"-"+k);return n?numv(n.value):null;});
-    const uw=[],ur=[];
-    for(let k=0;k<4;k++){const rn=$("#u-"+e.id+"-"+k);if(!rn)break;const rv=intv(rn.value);if(rv==null)continue;const wn=$("#v-"+e.id+"-"+k);ur.push(rv);uw.push(wn?numv(wn.value):null);}
+    const wu=pairs("u-"+e.id+"-","v-"+e.id+"-",4),dr=pairs("dr-"+e.id+"-","dw-"+e.id+"-",3);
     const tn=$("#n-"+e.id),nt=tn?tn.value.trim().slice(0,NOTE_MAX):"";
-    if(r.some(v=>v!=null)||ur.length||nt){ex[e.id]={w:w,r:r};if(ur.length)ex[e.id].wu={w:uw,r:ur};if(nt)ex[e.id].nt=nt;any=true;}
+    if(r.some(v=>v!=null)||wu||dr||nt){ex[e.id]={w:w,r:r};if(wu)ex[e.id].wu=wu;if(dr)ex[e.id].dr=dr;if(nt)ex[e.id].nt=nt;any=true;}
   });
+  /* records of other workouts on this date stay; planned ones not shown (skipped) and substitutes taken away go */
   const old=S.docs.get(S.date);
-  if(old&&old.ex)Object.keys(old.ex).forEach(id=>{if(!EX.some(e=>e.id===id)&&hasSets(old.ex[id])){ex[id]=old.ex[id];any=true;}});
+  if(old&&old.ex)Object.keys(old.ex).forEach(id=>{
+    if(!ex[id]&&!W.ex.some(e=>e.id===id)&&!shown.some(e=>e.id===id)&&!S.subGone.has(id)&&hasSets(old.ex[id])){ex[id]=old.ex[id];any=true;}
+  });
   const bw=numv($("#bwInput").value);
   const sk=[...(S.sk||[])].filter(id=>!ex[id]);
   if(!any&&bw==null&&!sk.length)return null;
   const body={date:S.date,wk:W.id,ex:ex};if(bw!=null)body.bw=bw;if(sk.length)body.sk=sk;
+  /* superset groups as done today (a substitute stands in its slot) — so a later comparison knows */
+  const tags=ssTags(W),groups={};
+  W.ex.forEach(e=>{const t=tags[e.id];if(!t)return;const id=S.sk.has(e.id)?S.sb[e.id]:e.id;if(id&&hasSets(ex[id]))(groups[t.g]=groups[t.g]||[]).push(id);});
+  const ss=Object.values(groups).filter(g=>g.length>1);if(ss.length)body.ss=ss;
+  const sb={},xd={};
+  Object.keys(S.sb).forEach(k=>{if(!S.sk.has(k))return;const id=S.sb[k];sb[k]=id;if(Array.isArray(S.xd[id]))xd[id]=S.xd[id];});
+  if(Object.keys(sb).length)body.sb=sb;if(Object.keys(xd).length)body.xd=xd;
   return body;
 }
 function flush(){
@@ -616,6 +752,7 @@ function flushProg(){
 }
 function saveProg(){
   PROG.saved=true;S.progChanged=true;
+  PROG.workouts.forEach(w=>w.ex.forEach((e,i)=>{if(e.ln&&!linked(w,i))delete e.ln;}));   /* moved or removed: the superset ends */
   if(S.remind.on){queueRemindSync();renderRemind();}
   setProgStatus("","Изменения…");
   clearTimeout(progTimer);progTimer=setTimeout(flushProg,700);
@@ -729,6 +866,7 @@ function renderProgEditor(){
         f.append(pfield(isBody(e)?"Старт, доп. кг":"Старт, кг",pnum(e.start,"decimal",v=>{e.start=clampNum(v,0,1000,e.start);})));
       }
       card.append(f);
+      card.append(techBlock(W,e,i));
       const tools=el("div","pc-tools");
       const mv=(d,txt,lab)=>{const b=el("button","mini",txt);b.type="button";b.setAttribute("aria-label",lab);const j=i+d;b.disabled=j<0||j>=EX.length;
         b.addEventListener("click",()=>{const t=EX[i];EX[i]=EX[j];EX[j]=t;haptic("tap");renderProgEditor();saveProg();});return b;};
@@ -743,6 +881,31 @@ function renderProgEditor(){
   });
   if(S.editKey&&!EX.some(e=>W.id+"/"+e.id===S.editKey)&&stack.indexOf("exSheet")>=0){S.editKey=null;closeSheet();}
   finishProgEditor(EX);
+}
+/* technique of one exercise: superset with the next one, drop sets after the last working set */
+function techBlock(W,e,i){
+  const box=el("div","tech");
+  box.append(el("span","eyebrow","Суперсет и дроп-сет"));
+  const next=W.ex[i+1],prevLinked=i>0&&linked(W,i-1);
+  {const row=el("label","rm-row");
+    const tx=el("div","rm-text");
+    tx.append(el("b",null,"🔗 Суперсет со следующим"),el("p","target",next?"с «"+next.name+"»"+(prevLinked?" · уже в суперсете с «"+W.ex[i-1].name+"» — получится круг":""):
+      (prevLinked?"в суперсете с «"+W.ex[i-1].name+"» (переключатель — у того упражнения)":"это последнее упражнение — суперсет включают у предыдущего")));
+    const sw=el("span","switch");const cb=el("input");cb.type="checkbox";cb.checked=linked(W,i);cb.disabled=!next;
+    cb.setAttribute("aria-label","Суперсет со следующим упражнением");
+    cb.addEventListener("change",()=>{if(cb.checked&&next)e.ln=next.id;else delete e.ln;haptic("tap");saveProg();renderProgEditor();});
+    sw.append(cb,el("span"));row.append(tx,sw);box.append(row);}
+  if(!isTime(e)){
+    const row=el("div","rm-row");
+    const tx=el("div","rm-text");tx.append(el("b",null,"Дроп-сет после последнего подхода"),el("p","target","сколько раз снижать вес"));
+    const seg=el("div","seg");
+    ["нет","1","2","3"].forEach((t,k)=>{const b=el("button",null,t);b.type="button";b.setAttribute("aria-pressed",String((e.dr||0)===k));
+      b.addEventListener("click",()=>{if(k)e.dr=k;else delete e.dr;haptic("tap");saveProg();renderProgEditor();});seg.append(b);});
+    row.append(tx,seg);box.append(row);
+  }
+  box.append(el("p","techhelp","Суперсет — по подходу из каждого упражнения подряд, отдых после круга. Если раньше делал отдельно, повторов может стать чуть меньше — это не считается «просело». "+
+    "Дроп-сет — сразу после последнего подхода снижаешь вес примерно на 25% и делаешь до отказа. По исследованиям мышцы растут так же, как от обычных подходов, только быстрее. В прогресс и «Прокачать» дропы не идут — считаются рабочие подходы."));
+  return box;
 }
 function finishProgEditor(EX){
   const full=EX.length>=MAX_EX||totalEx()>=MAX_TOTAL;
@@ -839,12 +1002,12 @@ function workoutReport(date){
     const raw=doc.ex[id];if(!hasSets(raw))return;
     const e=exById(id);if(!e)return;
     n++;
-    const cur=norm(raw);
+    const cur=recOf(doc,id);
     const tip=rampTip(e,cur,bw);if(tip)tips.push({n:e.name,t:tip});
     const lu=levelUp(e,cur);
     if(lu&&lu.kind==="up")tips.push({n:e.name,t:"все подходы по верху цели на "+wtText(e,lu.from)+" — в следующий раз можно нажать «Прокачать» и взять "+wtText(e,lu.to)});
     const prev=prevEntry(id,date);if(!prev)return;
-    const j=judge(e,prev,cur,bw);
+    const j=judge(e,prev,cur,bw,{gap:dayGap(prev.d,date)});
     /* the weight went up (by «Прокачать» or by hand) and the heavier set still made the range:
        that is a level-up, even if it took a few reps off */
     const pt=topSet(e,prev),ct=topSet(e,cur);
@@ -1016,7 +1179,7 @@ function closeSheet(){
   const id=stack.pop();if(!id)return;
   document.getElementById(id).hidden=true;
   if(id==="exSheet"){S.editKey=null;$("#exEditBody").textContent="";}
-  if(id==="libSheet")S.repl=null;
+  if(id==="libSheet"){S.repl=null;S.subFor=null;}
   if(id==="webSheet"){clearTimeout(webT);$("#webFrame").src="about:blank";}
   if(!stack.length){document.body.style.overflow="";try{if(tg&&tg.BackButton)tg.BackButton.hide();}catch(e){}}
 }
@@ -1083,12 +1246,13 @@ function libCard(x){
   if(ph)op.append(ph);else c.classList.add("nomedia");
   op.append(tx);
   op.addEventListener("click",()=>openTech(x.id));
-  if(S.repl){
-    const cur=replTarget(),now=cur&&cur.lib===x.id,busy=!now&&replBusy().has(x.id);
+  if(S.repl||S.subFor){
+    const cur=S.repl?replTarget():null,now=!!cur&&cur.lib===x.id;
+    const busy=!now&&(S.repl?replBusy().has(x.id):!!S.curW&&S.curW.ex.some(e=>e.lib===x.id));
     const b=el("button","lc-add"+(now||busy?" done":" swap"),now||busy?"✓":"⇄");b.type="button";
-    b.setAttribute("aria-label",now?"Это упражнение сейчас в программе":(busy?"Уже есть в тренировке":"Заменить на: "+x.name));
+    b.setAttribute("aria-label",now?"Это упражнение сейчас в программе":(busy?"Уже есть в тренировке":(S.repl?"Заменить на: ":"Сделать вместо: ")+x.name));
     if(now||busy){b.disabled=true;if(busy)c.classList.add("busy");}
-    else b.addEventListener("click",()=>replaceEx({lib:x.id,name:x.name}));
+    else b.addEventListener("click",()=>{const to={lib:x.id,name:x.name};if(S.repl)askReplace(to);else pickSub(to);});
     c.append(op,b);return c;
   }
   const on=inProg(x.id);
@@ -1113,44 +1277,78 @@ function renderLibList(){
     const grid=el("div","libgrid");hs.forEach(x=>grid.append(libCard(x)));box.append(grid);
   });
 }
-/* «Заменить»: the program slot keeps its id, so every past record, note and the progress line stay with it —
-   only the exercise it points to changes (in every workout that shares this id, since they share the history) */
+/* «Заменить» in the program asks what the history should do (askReplace):
+   - another exercise (default): the slot gets the new exercise's own id and history; the old records stay
+     under the old id, shown as a hint for the first time ("раньше здесь было") and in old months' progress;
+   - the same movement (renamed, the same machine in another gym): the slot keeps its id, so every past
+     record, note and the progress line stay with it.
+   Either way it changes in every workout that shares this slot. */
 function replTarget(){const r=S.repl;if(!r)return null;const W=PROG.workouts.find(w=>w.id===r.wid);return (W&&W.ex.find(e=>e.id===r.id))||null;}
 function replBusy(){   /* catalog ids already present next to this exercise — replacing with them would make a duplicate */
   const r=S.repl,out=new Set();if(!r)return out;
   PROG.workouts.forEach(w=>{if(w.ex.some(e=>e.id===r.id))w.ex.forEach(e=>{if(e.id!==r.id&&e.lib)out.add(e.lib);});});return out;
 }
-function replaceEx(to){
+function askReplace(to){
   const e=replTarget();if(!e){S.repl=null;closeSheet();return;}
   if(to.lib&&replBusy().has(to.lib)){toast("«"+to.name+"» уже есть в этой тренировке");return;}
+  const box=$("#replBody");box.textContent="";
+  box.append(el("p","replwhat","«"+e.name+"» → «"+to.name+"»"));
+  const opt=(title,text,cls,keep)=>{const b=el("button","replopt"+(cls?" "+cls:""));b.type="button";
+    b.append(el("b",null,title),el("span",null,text));b.addEventListener("click",()=>replaceEx(to,keep));box.append(b);};
+  opt("Другое упражнение","Своя история с нуля. Записи «"+e.name+"» сохранятся — в первый раз покажем их как подсказку для веса.","primary",false);
+  opt("То же движение","Переименовал или тот же тренажёр в другом зале: прошлые записи, «прошлый раз» и прогресс перейдут к новому.","",true);
+  box.append(el("p","target","Разные упражнения нельзя честно сравнивать по весу: 16 кг гантелями и 50 кг в тренажёре — не прогресс и не спад."));
+  openSheet("replSheet");
+}
+function replaceEx(to,keep){
+  const e=replTarget();if(!e){S.repl=null;closeSheet();return;}
   const lx=to.lib?LIBMAP[to.lib]:null;
   const d=lx||catDefaults(GROUPS[to.g],CAT.e[to.q],to.u||0);
   const kind=u=>u==="секунды"?1:(u==="минуты"?2:0);
-  const was=e.name,id=e.id,reset=kind(e.unit)!==kind(d.unit);
+  const was=e.name,id=e.id,reset=kind(e.unit)!==kind(d.unit),pv=packEx(e).slice(0,11);   /* without its own options and its own "before" */
+  /* a fresh history: the id this exercise has elsewhere in the program (shared history), else the catalog's */
+  let nid=id;
+  if(!keep){
+    const other=to.lib?allEx().find(x=>x.lib===to.lib):null;
+    nid=other?other.id:(to.lib?safeId(to.lib):"");
+    if(!other&&(!nid||allEx().some(x=>x.id===nid)))nid=rid("x");
+  }
   let n=0;
   PROG.workouts.forEach(w=>w.ex.forEach(x=>{
+    if(x.ln===id)x.ln=nid;   /* the superset before it still points at this slot */
     if(x.id!==id)return;n++;
     x.lib=to.lib||null;x.name=String(to.name).slice(0,60);
     if(x.lib){delete x.g;delete x.q;}else{x.g=to.g;x.q=to.q;}
-    /* weights and reps carry over; only a switch between reps and time makes the old numbers meaningless */
-    if(reset){x.sets=d.sets;x.lo=d.lo;x.hi=d.hi;x.step=d.step;x.unit=d.unit;x.start=0;}
+    if(keep){
+      /* weights and reps carry over; only a switch between reps and time makes the old numbers meaningless */
+      if(reset){x.sets=d.sets;x.lo=d.lo;x.hi=d.hi;x.step=d.step;x.unit=d.unit;x.start=0;delete x.dr;}
+    }else{
+      /* another exercise: its own range, step and unit; the number of sets and the technique stay */
+      x.id=nid;x.lo=d.lo;x.hi=d.hi;x.step=d.step;x.unit=d.unit;x.start=0;x.pv=pv;
+      if(isTime(x))delete x.dr;
+    }
   }));
-  S.repl=null;haptic("hit");saveProg();
-  if(stack[stack.length-1]==="libSheet")closeSheet();
+  const wid=S.repl.wid;S.repl=null;haptic("hit");saveProg();
+  while(stack.length&&(stack[stack.length-1]==="replSheet"||stack[stack.length-1]==="libSheet"))closeSheet();
+  if(S.editKey)S.editKey=wid+"/"+nid;   /* the settings sheet stays on the slot */
   renderProgEditor();
-  toast("«"+was+"» → «"+e.name+"»"+(reset?". Считается по-другому — проверь подходы":". История и прогресс на месте")+(n>1?" (в "+n+" тренировках)":""));
+  toast("«"+was+"» → «"+to.name+"»"+(keep?(reset?". Считается по-другому — проверь подходы":". История и прогресс на месте"):". Своя история, записи «"+was+"» сохранены")+(n>1?" (в "+n+" тренировках)":""));
 }
+/* repl: {wid,id} — replace in the program; {sub: planned id} — something else instead, only today */
 function openLib(repl){
   S.libQuery="";$("#libSearch").value="";
-  S.repl=repl||null;
-  const cur=replTarget();if(S.repl&&!cur)S.repl=null;
-  if(S.repl){
+  S.repl=repl&&repl.wid?repl:null;S.subFor=repl&&repl.sub?repl.sub:null;
+  const cur=S.repl?replTarget():(S.subFor&&S.curW?S.curW.ex.find(e=>e.id===S.subFor):null);
+  if(!cur){S.repl=null;S.subFor=null;}
+  if(cur){
     const lx=cur.lib&&LIBMAP[cur.lib],g=lx?lx.group:(cur.g!=null?GROUPS[cur.g]:null);
     if(g)S.libGroup=g;
-    $("#libTitle").textContent="Заменить «"+cur.name+"»";
+    $("#libTitle").textContent=(S.repl?"Заменить «":"Сегодня вместо «")+cur.name+"»";
+    $("#libRepl").textContent=S.repl?"Нажми «⇄» у упражнения, на которое меняешь в программе — дальше спросим, что делать с историей."
+      :"Нажми «⇄» у упражнения, которое сделаешь сегодня. У него будет своя история, а прогресс «"+cur.name+"» не пострадает.";
   }else $("#libTitle").textContent="Библиотека → «"+PW().name+"»";
-  $("#libRepl").hidden=!S.repl;
-  $("#customAdd").textContent=S.repl?"Заменить на своё упражнение":"Добавить своё упражнение";
+  $("#libRepl").hidden=!cur;
+  $("#customAdd").textContent=S.repl?"Заменить на своё упражнение":(S.subFor?"Сделать своё упражнение":"Добавить своё упражнение");
   renderLibChips();renderLibList();renderCustom();openSheet("libSheet");
   {const pc=$("#libChips [aria-pressed=true]");if(pc&&pc.scrollIntoView)pc.scrollIntoView({block:"nearest",inline:"center"});}
   $("#libSheet .body").scrollTop=0;
@@ -1174,7 +1372,7 @@ $("#customAdd").addEventListener("click",()=>{
   if(!n){$("#customName").focus();return;}
   if(CU.g==null){renderCustom();toast("Выбери группу мышц");$("#customGroup").scrollIntoView({block:"center",behavior:"smooth"});return;}
   if(CU.q==null){toast("Выбери снаряд");$("#customEq").scrollIntoView({block:"center",behavior:"smooth"});return;}
-  if(S.repl){const to={lib:null,name:n.slice(0,60),g:CU.g,q:CU.q,u:CU.u};$("#customName").value="";CU.g=null;CU.q=null;CU.u=0;renderCustom();replaceEx(to);return;}
+  if(S.repl||S.subFor){const to={lib:null,name:n.slice(0,60),g:CU.g,q:CU.q,u:CU.u};$("#customName").value="";CU.g=null;CU.q=null;CU.u=0;renderCustom();if(S.repl)askReplace(to);else pickSub(to);return;}
   const W=PW();
   if(W.ex.length>=MAX_EX||totalEx()>=MAX_TOTAL){toast("Достигнут лимит упражнений в программе");return;}
   const id=rid("x");
@@ -1237,9 +1435,17 @@ $("#nextYear").addEventListener("click",()=>{S.year++;renderYear();});
    and where it dropped compared with the previous workout. Unchanged exercises are not shown. */
 const curYM=()=>today().slice(0,7);
 function shiftYM(ym,n){const a=ym.split("-").map(Number);const d=new Date(a[0],a[1]-1+n,1);return d.getFullYear()+"-"+pad(d.getMonth()+1);}
-const exById=id=>allEx().find(x=>x.id===id)||DEFAULT_EX.find(x=>x.id===id)||null;
+/* an exercise by id: the program, the one a slot had before «Заменить», the old built-in one, or a day's substitute */
+function exById(id){
+  const e=allEx().find(x=>x.id===id);if(e)return e;
+  const pv=allEx().find(x=>x.pv&&x.pv[0]===id);if(pv)return cleanEx(unpackEx(pv.pv));
+  const d=DEFAULT_EX.find(x=>x.id===id);if(d)return d;
+  let bd="",def=null;
+  for(const [d,doc] of S.docs){if(d>bd&&doc&&doc.xd&&Array.isArray(doc.xd[id])){bd=d;def=doc.xd[id];}}
+  return def?cleanEx(unpackEx(def)):null;
+}
 function sessionsOf(id,days){
-  return days.map(d=>{const doc=S.docs.get(d),raw=doc&&doc.ex&&doc.ex[id];return hasSets(raw)?{d:d,x:norm(raw)}:null;}).filter(Boolean);
+  return days.map(d=>{const doc=S.docs.get(d),raw=doc&&doc.ex&&doc.ex[id];return hasSets(raw)?{d:d,x:recOf(doc,id)}:null;}).filter(Boolean);
 }
 /* the month, per exercise: its last workouts against the start — the end of the previous month (if within
    BASE_DAYS) or the month's first workout. Rules in periodTrend (progress.js). */

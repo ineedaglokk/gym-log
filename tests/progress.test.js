@@ -99,3 +99,36 @@ test("levelUp: every set on one weight at the top of the range",()=>{
   assert.deepEqual(P.levelUp(KG,x(100,[12,12,12])),{kind:"up",from:100,to:105});
   assert.equal(P.levelUp(KG,x(100,[12,12,11])),null);
 });
+
+test("people, not machines: superset on one side only is not a drop",()=>{
+  const solo=x(60,[12,12,11]),inSS=Object.assign(x(60,[10,9,9]),{ss:true});
+  const j=P.judge(KG,solo,inSS,null);
+  assert.equal(j.v,0);
+  assert.equal(j.why,"ss");
+  /* both in a superset: compared as usual */
+  assert.equal(P.judge(KG,Object.assign(x(60,[12,12,11]),{ss:true}),inSS,null).v,-1);
+});
+
+test("people, not machines: back after a break is not a drop",()=>{
+  const j=P.judge(KG,x(100,[12,12,12]),x(100,[9,8,8]),null,{gap:21});
+  assert.equal(j.v,0);
+  assert.equal(j.why,"break");
+  assert.equal(P.judge(KG,x(100,[12,12,12]),x(100,[9,8,8]),null,{gap:3}).v,-1);
+});
+
+test("month: no 'down' when a break of 2+ weeks came before the weak workouts",()=>{
+  const base=[at("2026-10-05",100,[12,12,12])];
+  const pts=[at("2026-11-02",90,[10,10,10]),at("2026-11-04",90,[10,9,9])];
+  assert.equal(P.periodTrend(KG,pts,base,null).kind,null);
+});
+
+test("drop sets never change the comparison",()=>{
+  const a=x(80,[12,11,10]),b=Object.assign(x(80,[12,11,10]),{dr:{w:[60,45],r:[10,8]}});
+  assert.equal(P.judge(KG,a,b,null).v,0);
+  assert.equal(P.judge(KG,b,a,null).v,0);
+});
+
+test("dayGap counts calendar days",()=>{
+  assert.equal(P.dayGap("2026-10-29","2026-11-02"),4);
+  assert.equal(P.dayGap("2026-03-28","2026-03-30"),2);
+});

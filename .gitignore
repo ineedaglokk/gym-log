@@ -1,2 +1,3 @@
 bot/wrangler.toml
 bot/.wrangler/
+.claude/

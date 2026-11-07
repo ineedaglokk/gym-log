@@ -1,5 +1,8 @@
 (function(){
 "use strict";
+/* progress math lives in progress.js (loaded first) */
+const {fmt,signed,isTime,isBody,wtText,setsOf,setScore,bestAll,cmpSets,setText,setChip,judge,deltaText,
+  levelUp,topSet,rampTip,periodTrend}=window.GymProgress;
 
 /* ================= data: library and program ================= */
 const UNITS=["кг","кг в руке","свой вес + кг","секунды","минуты"];
@@ -172,7 +175,6 @@ const parse=s=>{const a=s.split("-").map(Number);return new Date(a[0],a[1]-1,a[2
 const today=()=>iso(new Date());
 const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d);};
 const short=s=>{const d=parse(s);return d.getDate()+" "+MON_S[d.getMonth()];};
-const fmt=v=>v==null?"—":String(Math.round(v*100)/100).replace(".",",");
 const numv=t=>{t=String(t==null?"":t).trim().replace(",",".");if(t==="")return null;const v=parseFloat(t);return isFinite(v)&&v>=0?Math.round(v*100)/100:null;};
 /* 7.5 and 7,5 are the same number; once the field is left it is shown the app's way (7,5) */
 const normNum=i=>{const v=numv(i.value);if(v!=null&&i.value!==fmt(v))i.value=fmt(v);};
@@ -182,9 +184,7 @@ const workouts=n=>n+" "+plural(n,"тренировка","тренировки","
 const seq=n=>Array.from({length:n},(_,i)=>i);
 const hasSets=x=>x&&Array.isArray(x.r)&&x.r.some(v=>v!=null);
 const isWorkout=doc=>doc&&doc.ex&&Object.values(doc.ex).some(hasSets);
-const isTime=e=>e.unit==="секунды"||e.unit==="минуты";
 const tSuf=e=>e.unit==="минуты"?" мин":" с";
-const isBody=e=>e.unit==="свой вес + кг";
 const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
 const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
@@ -269,6 +269,8 @@ function prevEntry(id,date,n){
   }
   return best;
 }
+/* the body weight logged on or before that day — for bodyweight moves */
+function bwOn(date){let v=null,bd="";for(const [d,doc] of S.docs){if(d<=date&&doc&&doc.bw!=null&&d>bd){bd=d;v=doc.bw;}}return v;}
 /* The weight never goes up on its own: next time starts from last time's weights, set by set.
    Going heavier is the lifter's call, offered as one tap (see levelUp). */
 function suggestSets(e,prev){
@@ -277,30 +279,6 @@ function suggestSets(e,prev){
   let lastW=base!=null?base:e.start;
   return seq(e.sets).map(i=>{const w=prev.w[i]!=null?prev.w[i]:lastW;lastW=w;return {w:w};});
 }
-/* What the log may offer from a workout x of this exercise:
-   - "up": every planned set at one weight and every one at the top of the range → «Прокачать» (+step);
-   - "start": the weight was raised by hand during the workout and a heavier later set still made
-     the range → «Все подходы по N кг».
-   Nothing else; time-based exercises never get it. */
-function levelUp(e,x){
-  if(!x||isTime(e))return null;
-  const ss=[];
-  x.r.forEach((r,i)=>{if(r==null)return;const w=x.w[i]!=null?x.w[i]:(isBody(e)?0:null);if(w!=null)ss.push({w:w,r:r});});
-  if(!ss.length)return null;
-  const first=ss[0];
-  let h=null;
-  ss.slice(1).forEach(q=>{if(q.w>first.w&&q.r>=e.lo&&(!h||q.w>h.w))h=q;});
-  if(h)return {kind:"start",from:first.w,to:h.w};
-  if(e.step>0&&ss.length>=e.sets&&ss.every(q=>q.w===first.w&&q.r>=e.hi))return {kind:"up",from:first.w,to:Math.round((first.w+e.step)*100)/100};
-  return null;
-}
-/* the heaviest working set actually done (reps typed); bodyweight moves count "no extra" as 0 */
-function topSet(e,x){
-  let t=null;if(!x||isTime(e))return null;
-  x.r.forEach((r,i)=>{if(r==null||r<=0)return;let w=x.w[i];if(w==null){if(!isBody(e))return;w=0;}if(!t||w>t.w||(w===t.w&&r>t.r))t={w:w,r:r};});
-  return t;
-}
-const wtText=(e,v)=>(isBody(e)?"+":"")+fmt(v)+" кг";
 function setsText(x,e){
   const u=e?e.unit:"кг";
   return x.r.map((r,i)=>{
@@ -312,106 +290,6 @@ function setsText(x,e){
     return (w==null?"—":fmt(w))+"×"+r;
   }).filter(Boolean).join(" · ");
 }
-/* ================= progress: what counts as getting stronger =================
-   Only to settle trade-offs (more weight but fewer reps), weight and reps fold into one number,
-   weight × (1 + reps/30): one rep is worth about 3% of the weight. That number is never shown —
-   as a "one-rep max" it is meaningless for 12-rep sets, machines and dumbbells. A workout is judged by its best set, so a tired last set does
-   not spoil it. Clear cases need no formula: not less weight and not fewer reps, and more of one,
-   is always progress (+1 rep counts). Trade-offs (more weight, fewer reps) go by the formula, and
-   under 2% difference is "the same". With the best set no better, more total work still counts.
-   Bodyweight moves: the body weight logged on or before that day is added to the extra weight (the
-   same body weight for both sides of a comparison, so losing weight never looks like getting
-   weaker); without a logged body weight only clear cases count. Holds and cardio compare time. */
-const NOISE=0.02,REF_BW=70;
-const e1rm=(w,r)=>r>0?(r===1?w:w*(1+r/30)):0;
-function bwOn(date){let v=null,bd="";for(const [d,doc] of S.docs){if(d<=date&&doc&&doc.bw!=null&&d>bd){bd=d;v=doc.bw;}}return v;}
-function setsOf(e,x,bw){
-  const out=[];
-  x.r.forEach((r,i)=>{
-    if(r==null||r<=0)return;
-    const w=x.w[i];
-    if(isTime(e))out.push({i:i,r:r,w:null,load:null});
-    else if(isBody(e))out.push({i:i,r:r,w:w||0,load:bw!=null?bw+(w||0):null});
-    else if(w!=null)out.push({i:i,r:r,w:w,load:w});
-  });
-  return out;
-}
-/* warm-ups count only if one of them beats the working sets — then it was not really a warm-up.
-   They never count as volume and never as "the first set" for the slow-start tip. */
-const warmOf=(e,x,bw)=>x&&x.wu?setsOf(e,x.wu,bw).map(s=>Object.assign(s,{wu:true})):[];
-const bestAll=(e,x,bw)=>bestOf(e,setsOf(e,x,bw).concat(warmOf(e,x,bw)));
-const setScore=(e,s)=>isTime(e)?s.r:e1rm(s.load!=null?s.load:(s.w||0)+REF_BW,s.r);
-function bestOf(e,ss){let b=null;ss.forEach(s=>{if(!b||setScore(e,s)>setScore(e,b)+1e-9)b=s;});return b;}
-/* 1: b is stronger than a, -1: weaker, 0: the same (or impossible to tell) */
-function cmpSets(e,a,b){
-  if(isTime(e))return b.r>a.r?1:b.r<a.r?-1:0;
-  if(b.w>=a.w&&b.r>=a.r)return b.w>a.w||b.r>a.r?1:0;
-  if(b.w<=a.w&&b.r<=a.r)return -1;
-  if(a.load==null||b.load==null)return 0;
-  const ch=e1rm(b.load,b.r)/e1rm(a.load,a.r)-1;
-  return ch>NOISE?1:ch<-NOISE?-1:0;
-}
-function workOf(e,ss){return ss.reduce((t,s)=>t+(isTime(e)?s.r:(s.load!=null?s.load:(s.w||0)+REF_BW)*s.r),0);}
-function setText(e,s){
-  const t=isTime(e)?s.r+(e.unit==="минуты"?" мин":" с"):isBody(e)?(s.w?"+"+fmt(s.w)+" кг × "+s.r:s.r+" повт."):fmt(s.w)+" кг × "+s.r;
-  return s.wu?t+" (разминка)":t;
-}
-function setChip(e,s){
-  if(isTime(e))return s.r+(e.unit==="минуты"?" мин":" с");
-  if(isBody(e))return s.w?"+"+fmt(s.w)+"×"+s.r:String(s.r);
-  return fmt(s.w)+"×"+s.r;
-}
-function allSetsText(e,ss){
-  const ws=ss.map(s=>s.w);
-  const reps=ss.map(s=>s.r).join(", ");
-  if(isTime(e))return reps+(e.unit==="минуты"?" мин":" с");
-  if(ws.every(w=>w===ws[0]))return isBody(e)?(ws[0]?"+"+fmt(ws[0])+" кг: ":"")+reps+(ws[0]?"":" повт."):fmt(ws[0])+" кг: "+reps;
-  return ss.map(s=>setChip(e,s)).join(", ");
-}
-/* compares two workouts of one exercise; null when there is nothing to compare */
-function judge(e,xa,xb,bw){
-  const A=setsOf(e,xa,bw),B=setsOf(e,xb,bw);
-  if(!A.length||!B.length)return null;
-  const a=bestOf(e,A.concat(warmOf(e,xa,bw))),b=bestOf(e,B.concat(warmOf(e,xb,bw)));
-  let v=cmpSets(e,a,b),why="best";
-  if(v===0&&workOf(e,B)>workOf(e,A)*(1+NOISE)){v=1;why="work";}
-  const res={v:v,why:why,a:a,b:b,A:A,B:B};
-  res.was=why==="work"?allSetsText(e,A):setText(e,a);
-  res.now=why==="work"?allSetsText(e,B):setText(e,b);
-  return res;
-}
-/* the badge: what changed in the best set, in kilos and reps */
-function deltaText(e,j){
-  if(j.why==="work"){const p=Math.round((workOf(e,j.B)/workOf(e,j.A)-1)*100);return "объём "+(p>0?"+":"−")+Math.abs(p)+"%";}
-  if(isTime(e))return signed(j.b.r-j.a.r)+(e.unit==="минуты"?" мин":" с");
-  const parts=[];
-  if(j.b.w!==j.a.w)parts.push(signed(j.b.w-j.a.w)+" кг");
-  if(j.b.r!==j.a.r)parts.push(signed(j.b.r-j.a.r)+" повт.");
-  return parts.join(", ")||"=";
-}
-/* a later set clearly better than the first one: the start was too easy.
-   Heavier later and still in the rep range → start the working sets there (same rule the log uses
-   to raise the start weight). Same weight but 2+ more reps (or 15% more time) → there was reserve. */
-function rampTip(e,x,bw){
-  const ss=setsOf(e,x,bw);if(ss.length<2)return null;
-  const first=ss[0],rest=ss.slice(1);
-  const which=s=>s===ss[ss.length-1]?"Последний подход":(ss.indexOf(s)+1)+"-й подход";
-  if(!isTime(e)){
-    let h=null;
-    rest.forEach(s=>{if(s.w>first.w&&s.r>=e.lo&&(!h||s.w>h.w||(s.w===h.w&&s.r>h.r)))h=s;});
-    if(h)return which(h)+" ("+setText(e,h)+") тяжелее первого ("+setText(e,first)+"), и повторов хватило — "+
-      "в следующий раз можно начать рабочие подходы сразу с "+wtText(e,h.w);
-  }
-  let m=null;
-  rest.forEach(s=>{
-    const more=isTime(e)?s.r>=first.r*1.15&&s.r-first.r>=5:s.w===first.w&&s.r-first.r>=2;
-    if(more&&(!m||s.r>m.r))m=s;
-  });
-  if(m)return which(m)+" ("+setText(e,m)+") сильнее первого ("+setText(e,first)+") — в начале был запас. "+
-    "В следующий раз выкладывайся с первого подхода"+(isTime(e)?"":" или добавь вес");
-  return null;
-}
-
 const targetText=e=>e.sets+" × "+(e.lo===e.hi?e.hi:e.lo+"–"+e.hi)+(isTime(e)?tSuf(e):"")+" · "+e.unit;
 
 /* ================= LOG ================= */
@@ -1363,28 +1241,28 @@ const exById=id=>allEx().find(x=>x.id===id)||DEFAULT_EX.find(x=>x.id===id)||null
 function sessionsOf(id,days){
   return days.map(d=>{const doc=S.docs.get(d),raw=doc&&doc.ex&&doc.ex[id];return hasSets(raw)?{d:d,x:norm(raw)}:null;}).filter(Boolean);
 }
-/* the month: stronger than at the first workout of the month — or weaker than last time */
+/* the month, per exercise: its last workouts against the start — the end of the previous month (if within
+   BASE_DAYS) or the month's first workout. Rules in periodTrend (progress.js). */
+const BASE_DAYS=42;
 function monthSummary(ym){
-  const days=[...S.docs.keys()].filter(d=>d.slice(0,7)===ym).sort();
+  const all=[...S.docs.keys()].sort(),from=ym+"-01",baseFrom=addDays(from,-BASE_DAYS);
+  const days=all.filter(d=>d.slice(0,7)===ym),before=all.filter(d=>d<from&&d>=baseFrom);
   const ids=new Set();
   days.forEach(d=>{const doc=S.docs.get(d);if(doc.ex)Object.keys(doc.ex).forEach(id=>{if(hasSets(doc.ex[id]))ids.add(id);});});
   const items=[];
   ids.forEach(id=>{
     const e=exById(id);if(!e)return;
-    const ss=sessionsOf(id,days);
-    if(ss.length<2)return;
+    const ss=sessionsOf(id,days);if(!ss.length)return;
     const bw=bwOn(ss[ss.length-1].d);
-    const pts=ss.map(s=>({d:s.d,x:s.x,best:bestAll(e,s.x,bw)})).filter(p=>p.best);
-    if(pts.length<2)return;
-    const first=pts[0],prev=pts[pts.length-2],last=pts[pts.length-1];
-    const jd=judge(e,prev.x,last.x,bw),ju=judge(e,first.x,last.x,bw);
-    const kind=jd&&jd.v<0?"down":(ju&&ju.v>0?"up":null);
-    if(kind)items.push({id:id,e:e,bw:bw,pts:pts,first:first,prev:prev,last:last,kind:kind,j:kind==="down"?jd:ju,tip:rampTip(e,last.x,bw)});
+    const withBest=list=>list.map(s=>({d:s.d,x:s.x,best:bestAll(e,s.x,bw)})).filter(p=>p.best);
+    const pts=withBest(ss),base=withBest(sessionsOf(id,before)).slice(-2);
+    const t=pts.length?periodTrend(e,pts,base,bw):null;
+    if(!t||!t.kind)return;
+    items.push({id:id,e:e,bw:bw,pts:base.slice(-1).concat(pts),kind:t.kind,j:t.j,start:t.start,end:t.end,dip:t.dip,last:t.last,tip:rampTip(e,t.last.x,bw)});
   });
   const bw=days.map(d=>({d:d,v:S.docs.get(d).bw})).filter(p=>p.v!=null);
-  return {days:days,nW:days.filter(d=>isWorkout(S.docs.get(d))).length,items:items,bw:bw};
+  return {days:days,nW:days.filter(d=>isWorkout(S.docs.get(d))).length,base:before.some(d=>isWorkout(S.docs.get(d))),items:items,bw:bw};
 }
-const signed=v=>(v>0?"+":v<0?"−":"")+fmt(Math.abs(Math.round(v*100)/100));
 function goDay(d){flush();S.date=d;S.logW=null;setView("log");renderLog();window.scrollTo({top:0});}
 function progItem(it){
   const box=el("div","pi "+it.kind);
@@ -1395,14 +1273,16 @@ function progItem(it){
   const path=el("div","pi-path");
   it.pts.forEach((p,i)=>{
     if(i)path.append(el("span",null,"→"));
-    const b=el("button",i===it.pts.length-1?"now":null);b.type="button";
+    const b=el("button",p.d===it.end.d?"now":null);b.type="button";   /* the workout the month is judged by */
     b.append(short(p.d)+" · ",el("b",null,setChip(it.e,p.best)));b.setAttribute("aria-label","Открыть тренировку "+short(p.d));
     b.addEventListener("click",()=>goDay(p.d));path.append(b);
   });
   box.append(path);
-  if(it.kind==="down")box.append(el("p","pi-note","В прошлый раз ("+short(it.prev.d)+") лучший подход — "+it.j.was+", сейчас — "+it.j.now+". Верни "+it.j.was+" на следующей тренировке — и дальше вверх."));
-  else if(it.j.why==="work")box.append(el("p","pi-note","Лучший подход не слабее, а сделано больше: "+it.j.was+" → "+it.j.now+" с "+short(it.first.d)+"."));
-  else box.append(el("p","pi-note",it.j.was+" → "+it.j.now+" с "+short(it.first.d)+". Так держать."));
+  const since=" с "+short(it.start.d);
+  if(it.kind==="down")box.append(el("p","pi-note","Две тренировки подряд слабее, чем "+short(it.start.d)+": было "+it.j.was+", лучшее из последних — "+it.j.now+". Верни прежний результат — и дальше вверх."));
+  else if(it.j.why==="work"&&!it.j.one)box.append(el("p","pi-note","Лучший подход не слабее, а сделано больше: "+it.j.was+" → "+it.j.now+since+"."));
+  else box.append(el("p","pi-note",it.j.was+" → "+it.j.now+since+". Так держать."));
+  if(it.dip)box.append(el("p","pi-note","Последняя тренировка ("+short(it.last.d)+") слабее прошлой — так бывает (сон, отдых между подходами), на итог месяца это не влияет."));
   if(it.tip)box.append(el("p","pi-note tip","💡 "+it.tip+"."));
   if(S.pmOpen===it.id){
     /* whole history of this exercise */
@@ -1427,7 +1307,7 @@ function renderProgress(){
   const body=$("#progBody");body.textContent="";
   const up=sm.items.filter(i=>i.kind==="up"),down=sm.items.filter(i=>i.kind==="down");
   if(!sm.nW)body.append(el("div","empty","В "+MON_IN[a[1]-1]+" тренировок пока нет. После двух тренировок здесь появится сводка: где ты стал сильнее, а где просел."));
-  else if(!sm.items.length)body.append(el("div","empty",sm.nW<2?"Сводка появится после второй тренировки месяца: здесь будет видно, где ты стал сильнее, а где просел.":"Пока без изменений: результаты как на первой тренировке месяца. Где добил верх диапазона — бери больше, подсказка на вкладке «Тренировка»."));
+  else if(!sm.items.length)body.append(el("div","empty",sm.nW<2&&!sm.base?"Сводка появится после второй тренировки: здесь будет видно, где ты стал сильнее, а где просел.":"Пока без заметных изменений с начала месяца. Где добил верх диапазона — бери больше, подсказка на вкладке «Тренировка»."));
   else{
     const sum=el("div","psum");
     if(up.length)sum.append(el("span","pchip","↑ "+up.length+" "+plural(up.length,"стало лучше","стали лучше","стали лучше")));

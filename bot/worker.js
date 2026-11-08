@@ -231,27 +231,47 @@ function fill(t, u, vars) {
   return cap(s);
 }
 
-/* ---------- the report after a workout ---------- */
-const line = x => `• ${x.n} — ${x.now}, а ${x.d} было ${x.was}${x.l ? " — вес прокачан ⬆" : ""}${x.r ? " 🏆" : ""}`;
-function reportText(u, rep) {
-  const tips = rep.tips || [];
-  const tipBlock = tips.length ? "\n\n💡 На заметку:\n" + tips.map(x => `• ${x.n}: ${x.t.charAt(0).toLowerCase() + x.t.slice(1)}.`).join("\n") : "";
-  return reportBody(u, rep) + tipBlock;
+/* ---------- the report after a workout ----------
+   Short on purpose — nobody reads a wall of text after the gym: the head line, up to three highlights
+   (records first), one line about what dipped, what to take next time. Details are in the app. */
+const MAX_UP = 3;
+/* long names cut at a word, without a dangling preposition:
+   "Тяга горизонтального блока узкой рукояткой" → "Тяга горизонтального блока узкой…" */
+function shortName(t) {
+  t = String(t).replace(/\s*\([^)]*\)/g, "").trim();
+  if (t.length <= 34) return t;
+  let w = t.slice(0, 35).split(" ").slice(0, -1);
+  while (w.length > 2 && /^(с|со|на|в|во|к|у|за|по|от|до|из|для|и)$/i.test(w[w.length - 1])) w.pop();
+  return w.join(" ") + "…";
 }
-function reportBody(u, rep) {
-  const up = rep.up || [], down = rep.down || [];
-  const downBlock = down.length ? "\n\n" + pickFor(u, "dh", L.DOWN_HEAD) + "\n" + down.map(line).join("\n") : "";
-  const ms = L.MILESTONES.indexOf(rep.t) >= 0 ? "\n\n" + fill(pickFor(u, "ms", L.MILESTONE), u, { t: rep.t }) : "";
-  if (up.length) {
-    const rec = up.some(x => x.r) ? "\n\n🏆 — личный рекорд" : "";
-    return fill(pickFor(u, "uh", L.UP_HEAD), u) + "\n" + up.map(line).join("\n") + rec + downBlock +
-      (down.length ? "\n\nПросевшее вернём в следующий раз. " : "\n\n") + pickFor(u, "ut", L.UP_TAIL) + ms;
+const compact = t => String(t).replace(/ кг × /g, "×");
+const mark = x => (x.r ? "🏆" : x.l ? "⬆" : "•");
+function reportText(u, rep) {
+  const up = (rep.up || []).slice().sort((a, b) => b.r - a.r);   /* records first, otherwise the program's order */
+  const down = rep.down || [];
+  /* short tips only ("159 кг"); the long sentences older app versions send are left out */
+  const tips = (rep.tips || []).filter(x => x.t.length <= 24).slice(0, 3);
+  const ms = L.MILESTONES.indexOf(rep.t) >= 0 ? fill(pickFor(u, "ms", L.MILESTONE), u, { t: rep.t }) : "";
+  if (!up.length && !down.length) {
+    if (rep.c) return [fill(pickFor(u, "fl", L.FLAT), u), ms].filter(Boolean).join("\n\n");
+    if (rep.t === 1) return fill(pickFor(u, "f1", L.FIRST), u, { k: rep.n });
+    return [fill(pickFor(u, "fr", L.FRESH), u, { k: rep.n }), ms].filter(Boolean).join("\n\n");
   }
-  if (down.length)
-    return fill(hi(u) + "тренировка засчитана ✅", u) + downBlock + "\n\n" + pickFor(u, "do", L.DOWN_ONLY) + ms;
-  if (rep.c) return fill(pickFor(u, "fl", L.FLAT), u) + ms;
-  if (rep.t === 1) return fill(pickFor(u, "f1", L.FIRST), u, { k: rep.n });
-  return fill(pickFor(u, "fr", L.FRESH), u, { k: rep.n }) + ms;
+  const blocks = [];
+  if (up.length) {
+    const lines = [fill(pickFor(u, "uh", L.UP_HEAD), u)];
+    up.slice(0, MAX_UP).forEach(x => lines.push(mark(x) + " " + shortName(x.n) + " — " + compact(x.now)));
+    if (up.length > MAX_UP) lines.push("и ещё " + (up.length - MAX_UP) + " упр. стали лучше");
+    blocks.push(lines.join("\n"));
+  } else blocks.push(fill(hi(u) + "тренировка засчитана ✅", u));
+  if (down.length) {
+    let d = pickFor(u, "dh", L.DOWN_HEAD) + " " + down.slice(0, 2).map(x => shortName(x.n)).join(", ") + (down.length > 2 ? "…" : "");
+    if (!up.length) d += "\n" + pickFor(u, "do", L.DOWN_ONLY);
+    blocks.push(d);
+  }
+  if (tips.length) blocks.push("В следующий раз:\n" + tips.map(x => shortName(x.n) + " — " + x.t).join("\n"));
+  if (ms) blocks.push(ms);
+  return blocks.join("\n\n");
 }
 /* the best thing from the last report, for a joke later */
 function bragOf(rep) {

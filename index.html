@@ -432,6 +432,36 @@ li.ex.sub{border-style:dashed;border-color:var(--accent)}
 .replopt b{font-size:15px}
 .replopt span{font-size:13px;color:var(--muted)}
 .replopt.primary{border-color:var(--accent);background:var(--accent-soft)}
+/* exercise card, weekly sets, all exercises */
+.exname{border:0;background:none;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.card-media{display:block;width:100%;aspect-ratio:12/5;border-radius:12px;overflow:hidden;background:var(--sunk)}
+.card-media img{width:100%;height:100%;object-fit:cover;display:block}
+.recs{gap:2px}
+.recrow{display:flex;align-items:baseline;gap:10px;border:0;background:none;padding:7px 0;border-bottom:1px solid var(--line);color:var(--fg);cursor:pointer;text-align:left;font:inherit}
+.recrow:last-of-type{border-bottom:0}
+.rr-r{flex:none;width:96px;color:var(--muted);font-size:13px}
+.recrow b{flex:1;font:600 18px var(--display);font-variant-numeric:tabular-nums}
+.rr-d{flex:none;font-size:12.5px;color:var(--muted)}
+.hist{display:flex;flex-direction:column;gap:2px}
+.histrow{display:flex;gap:10px;align-items:baseline;border:0;background:none;padding:8px 0;border-bottom:1px solid var(--line);color:var(--fg);cursor:pointer;text-align:left;font:inherit}
+.hr-d{flex:none;width:52px;font-size:13px;color:var(--muted)}
+.hr-s{flex:1;min-width:0;font-size:14px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.week{gap:6px;margin-bottom:12px}
+.wk-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:2px}
+.wk-head span{font-size:12.5px;color:var(--muted)}
+.wk-row{display:grid;grid-template-columns:86px minmax(0,1fr) 34px 62px;align-items:center;gap:8px;font-size:13.5px}
+.wk-g{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk-bar{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--sunk) 40%,var(--up-soft) 40%,var(--up-soft) 80%,var(--sunk) 80%);overflow:hidden}
+.wk-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--muted)}
+.wk-bar i.ok{background:var(--up)}
+.wk-n{text-align:right;font:600 15px var(--display);font-variant-numeric:tabular-nums}
+.wk-was{font-size:12px;color:var(--muted);white-space:nowrap}
+.allex{display:flex;flex-direction:column;gap:6px;margin-top:16px}
+.exrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;cursor:pointer;color:var(--fg);text-align:left;font:inherit}
+.exr-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.exr-t b{font-weight:600;font-size:14.5px}
+.exr-t small{font-size:12.5px;color:var(--muted)}
+.exr-go{flex:none;color:var(--muted);font-size:20px}
 </style>
 </head>
 <body>
@@ -570,12 +600,14 @@ li.ex.sub{border-style:dashed;border-color:var(--accent)}
       <button type="button" data-y="cal" aria-pressed="false">Календарь</button>
     </div>
     <div id="progPane">
+      <div class="card week" id="weekSets" hidden></div>
       <div class="yearhead">
         <button type="button" class="iconbtn" id="pmPrev" aria-label="Предыдущий месяц">‹</button>
         <div style="text-align:center"><span class="eyebrow" id="pmCount">0 тренировок</span><h2 id="pmTitle">Месяц</h2></div>
         <button type="button" class="iconbtn" id="pmNext" aria-label="Следующий месяц">›</button>
       </div>
       <div id="progBody"></div>
+      <div class="allex" id="allEx" hidden></div>
     </div>
     <div id="calPane" hidden>
       <div class="yearhead">
@@ -637,6 +669,15 @@ li.ex.sub{border-style:dashed;border-color:var(--accent)}
   </div>
 </div>
 
+<!-- one exercise: records by reps, chart, history -->
+<div class="sheet tall" id="cardSheet" hidden role="dialog" aria-modal="true" aria-labelledby="cardTitle">
+  <div class="backdrop" data-close></div>
+  <div class="panel">
+    <div class="bar"><h3 id="cardTitle">Упражнение</h3><button type="button" class="closebtn" data-close aria-label="Закрыть">✕</button></div>
+    <div class="body" id="cardBody"></div>
+  </div>
+</div>
+
 <!-- «Заменить» in the program: what happens to the history -->
 <div class="sheet" id="replSheet" hidden role="dialog" aria-modal="true" aria-labelledby="replTitle">
   <div class="backdrop" data-close></div>
@@ -648,7 +689,7 @@ li.ex.sub{border-style:dashed;border-color:var(--accent)}
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <script src="cat.js?v=9996b662"></script>
-<script src="progress.js?v=6638b045"></script>
-<script src="app.js?v=f9706657"></script>
+<script src="progress.js?v=a5e4bf8a"></script>
+<script src="app.js?v=e2bd242a"></script>
 </body>
 </html>

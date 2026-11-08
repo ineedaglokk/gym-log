@@ -142,26 +142,33 @@ function topSet(e,x){
   return t;
 }
 /* a later set clearly better than the first one: the start was too easy.
-   Heavier later and still in the rep range → start the working sets there (same rule the log uses
-   to raise the start weight). Same weight but 2+ more reps (or 15% more time) → there was reserve. */
-function rampTip(e,x,bw){
+   kind "start": heavier later and still in the rep range → start the working sets there;
+   kind "reserve": same weight but 2+ more reps (or 15% more time) → there was reserve. s — that set. */
+function rampInfo(e,x,bw){
   const ss=setsOf(e,x,bw);if(ss.length<2)return null;
   const first=ss[0],rest=ss.slice(1);
-  const which=s=>s===ss[ss.length-1]?"Последний подход":(ss.indexOf(s)+1)+"-й подход";
   if(!isTime(e)){
     let h=null;
     rest.forEach(s=>{if(s.w>first.w&&s.r>=e.lo&&(!h||s.w>h.w||(s.w===h.w&&s.r>h.r)))h=s;});
-    if(h)return which(h)+" ("+setText(e,h)+") тяжелее первого ("+setText(e,first)+"), и повторов хватило — "+
-      "в следующий раз можно начать рабочие подходы сразу с "+wtText(e,h.w);
+    if(h)return {kind:"start",first:first,s:h};
   }
   let m=null;
   rest.forEach(s=>{
     const more=isTime(e)?s.r>=first.r*1.15&&s.r-first.r>=5:s.w===first.w&&s.r-first.r>=2;
     if(more&&(!m||s.r>m.r))m=s;
   });
-  if(m)return which(m)+" ("+setText(e,m)+") сильнее первого ("+setText(e,first)+") — в начале был запас. "+
-    "В следующий раз выкладывайся с первого подхода"+(isTime(e)?"":" или добавь вес");
-  return null;
+  return m?{kind:"reserve",first:first,s:m}:null;
+}
+/* the same, as one short sentence for the app */
+function rampTip(e,x,bw){
+  const t=rampInfo(e,x,bw);if(!t)return null;
+  if(t.kind==="start")return "В следующий раз начинай сразу с "+wtText(e,t.s.w)+": "+setChip(e,t.s)+" прошёл в диапазоне";
+  return "В начале был запас ("+setChip(e,t.first)+" → "+setChip(e,t.s)+")"+(isTime(e)?" — выкладывайся с первого подхода":" — начинай тяжелее");
+}
+/* and as two or three words for the bot's report ("Жим ногами — с 25 кг") */
+function rampShort(e,x,bw){
+  const t=rampInfo(e,x,bw);if(!t)return null;
+  return t.kind==="start"?"с "+wtText(e,t.s.w):(isTime(e)?"с первого подхода":"можно тяжелее");
 }
 
 /* One exercise over a period (a month). pts: its workouts in the period, oldest first, [{d, x}];
@@ -190,8 +197,33 @@ function periodTrend(e,pts,base,bw){
   return {kind:kind,j:j,start:start,end:end,last:last,dip:jd&&jd.v<0?{prev:prev,j:jd}:null};
 }
 
+/* ---------- exercise card and weekly volume ---------- */
+/* Best results by reps — the frontier: sets no other set beats on both weight and reps
+   (160×8 and 154×13 both stay; 150×10 goes, 154×13 beats it). Working sets only, the date it was first done.
+   Holds and cardio: the longest one. sessions: [{d, x}] */
+function repRecords(e,sessions,bw){
+  const all=[];
+  sessions.forEach(p=>setsOf(e,p.x,bw).forEach(s=>all.push({w:s.w,r:s.r,d:p.d})));
+  if(isTime(e)){const b=all.reduce((m,a)=>!m||a.r>m.r||(a.r===m.r&&a.d<m.d)?a:m,null);return b?[b]:[];}
+  const front=all.filter(a=>!all.some(b=>b.w>=a.w&&b.r>=a.r&&(b.w>a.w||b.r>a.r)));
+  const once=new Map();
+  front.forEach(a=>{const k=a.w+"×"+a.r,o=once.get(k);if(!o||a.d<o.d)once.set(k,a);});
+  return [...once.values()].sort((a,b)=>a.r-b.r);
+}
+/* sets that count for the weekly volume: working sets; a drop counts as half a set (a common convention —
+   the literature has no exact rule); warm-ups never */
+function hardSets(e,x){
+  const dr=x&&x.dr&&Array.isArray(x.dr.r)?x.dr.r.filter(r=>r>0).length:0;
+  return setsOf(e,x,null).length+dr/2;
+}
+/* the Monday of the week a date (YYYY-MM-DD) falls in */
+function weekOf(d){
+  const t=Date.parse(d+"T00:00:00Z"),wd=(new Date(t).getUTCDay()+6)%7;
+  return new Date(t-wd*864e5).toISOString().slice(0,10);
+}
+
 const api={UP_NOISE,DOWN_NOISE,REP_CAP,BREAK_DAYS,dayGap,fmt,signed,isTime,isBody,wtText,e1rm,setsOf,setScore,bestOf,bestAll,workOf,
-  cmpSets,setText,setChip,allSetsText,judge,deltaText,levelUp,topSet,rampTip,periodTrend};
+  cmpSets,setText,setChip,allSetsText,judge,deltaText,levelUp,topSet,rampTip,rampShort,periodTrend,repRecords,hardSets,weekOf};
 root.GymProgress=api;
 if(typeof module!=="undefined"&&module.exports)module.exports=api;
 })(typeof window!=="undefined"?window:globalThis);

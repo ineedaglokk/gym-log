@@ -132,3 +132,26 @@ test("dayGap counts calendar days",()=>{
   assert.equal(P.dayGap("2026-10-29","2026-11-02"),4);
   assert.equal(P.dayGap("2026-03-28","2026-03-30"),2);
 });
+
+test("records by reps keep only results nothing beats on both weight and reps",()=>{
+  const ss=[at("2026-10-01",[150,160,150],[10,8,10]),at("2026-10-08",154,[13,12,11]),at("2026-10-15",160,[8,7,7])];
+  const r=P.repRecords(KG,ss,null).map(a=>a.w+"×"+a.r+" "+a.d);
+  assert.deepEqual(r,["160×8 2026-10-01","154×13 2026-10-08"]);
+});
+
+test("records: holds keep the longest time",()=>{
+  const PL={unit:"секунды",sets:3,lo:30,hi:60,step:0};
+  const r=P.repRecords(PL,[at("2026-10-01",[null,null],[45,50]),at("2026-10-05",[null],[62])],null);
+  assert.deepEqual(r.map(a=>a.r),[62]);
+});
+
+test("weekly sets: working sets count, a drop is half a set, warm-ups never",()=>{
+  const xr=Object.assign(x(80,[12,11,10]),{wu:{w:[40],r:[10]},dr:{w:[60,45],r:[10,8]}});
+  assert.equal(P.hardSets(KG,xr),4);
+});
+
+test("weekOf gives the Monday",()=>{
+  assert.equal(P.weekOf("2026-11-07"),"2026-11-02");
+  assert.equal(P.weekOf("2026-11-02"),"2026-11-02");
+  assert.equal(P.weekOf("2026-11-08"),"2026-11-02");
+});

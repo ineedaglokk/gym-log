@@ -2,7 +2,7 @@
 "use strict";
 /* progress math lives in progress.js (loaded first) */
 const {fmt,signed,isTime,isBody,wtText,setsOf,setScore,bestAll,cmpSets,setText,setChip,judge,deltaText,
-  levelUp,topSet,rampTip,periodTrend,dayGap,BREAK_DAYS}=window.GymProgress;
+  levelUp,topSet,rampTip,rampShort,periodTrend,dayGap,BREAK_DAYS,repRecords,hardSets,weekOf}=window.GymProgress;
 
 /* ================= data: library and program ================= */
 const UNITS=["кг","кг в руке","свой вес + кг","секунды","минуты"];
@@ -141,7 +141,11 @@ function fromLib(x,W){
   return {id:id,lib:x.id,name:x.name,sets:x.sets||3,lo:x.lo||10,hi:Math.max(x.lo||10,x.hi||12),
     step:x.step!=null?x.step:2.5,start:other?other.start:0,unit:UNITS.indexOf(x.unit)>=0?x.unit:"кг"};
 }
-function setProg(p){PROG=p;S.pwi=0;S.logW=null;S.editKey=null;S.peEdit=false;}
+function setProg(p){
+  const keep=new Set();p.workouts.forEach(w=>w.ex.forEach(e=>keep.add(e.id)));
+  allEx().forEach(e=>{if(!keep.has(e.id))remember(e);});   /* a template or a shared program replaced them */
+  PROG=p;S.pwi=0;S.logW=null;S.editKey=null;S.peEdit=false;
+}
 
 /* ready-made splits for friends */
 const TEMPLATES=[
@@ -174,7 +178,7 @@ const MON_G=["января","февраля","марта","апреля","мая
 const MON_IN=["январе","феврале","марте","апреле","мае","июне","июле","августе","сентябре","октябре","ноябре","декабре"];
 const MON_S=["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
 const WD=["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
-const LS="tg-gym-log-v1",LSP="tg-gym-prog-v1",PKEY="program",RKEY="remind",KEY=d=>"w_"+d;
+const LS="tg-gym-log-v1",LSP="tg-gym-prog-v1",LSG="tg-gym-gone-v1",PKEY="program",RKEY="remind",GKEY="gone",KEY=d=>"w_"+d;
 /* the bot (Cloudflare Worker) that sends reminders and the after-workout report; empty to switch it off */
 const BOT_API="https://shlepa-bot.iwbbtbtb.workers.dev";
 
@@ -200,7 +204,7 @@ const isWorkout=doc=>doc&&doc.ex&&Object.values(doc.ex).some(hasSets);
 const tSuf=e=>e.unit==="минуты"?" мин":" с";
 const imgSrc=(id,k)=>"img/"+id+"_"+(k||0)+".jpg";
 
-const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,pmOpen:null,
+const S={docs:new Map(),mode:"pending",loaded:false,date:today(),view:"log",yearPane:"prog",remind:{on:true,fun:true,hour:8,v:2},pm:null,gone:{},
   year:new Date().getFullYear(),sel:null,metric:null,touched:false,timer:null,chain:Promise.resolve(),
   libGroup:"Все",libQuery:"",editKey:null,repl:null,pwi:0,logW:null,curW:null,wuN:{},drN:{},noteOpen:{},lvl:{},sk:new Set(),skDate:null,sb:{},xd:{},subGone:new Set(),subFor:null,shown:[]};
 
@@ -401,7 +405,9 @@ function renderLog(){
     const li=el("li","ex"+(sub?" sub":"")+ssCls(tag));li.dataset.id=e.id;
 
     const head=el("div","exhead");
-    {const h3=el("h3");if(tag)h3.append(el("span","sstag",tag.g+tag.k));h3.append(e.name);head.append(h3);}
+    {const h3=el("h3");if(tag)h3.append(el("span","sstag",tag.g+tag.k));
+      const nm=el("button","exname",e.name);nm.type="button";nm.setAttribute("aria-label","История и рекорды: "+e.name);
+      nm.addEventListener("click",()=>{flush();openCard(e.id);});h3.append(nm);head.append(h3);}
     const pn=lastNote(e.id,S.date),myNote=doc&&doc.ex&&doc.ex[e.id]&&doc.ex[e.id].nt||"";
     const btns=el("div","exbtns");
     const nb=el("button","nbtn"+(pn?" has":"")+(myNote?" mine":""));nb.type="button";
@@ -871,7 +877,7 @@ function renderProgEditor(){
       const mv=(d,txt,lab)=>{const b=el("button","mini",txt);b.type="button";b.setAttribute("aria-label",lab);const j=i+d;b.disabled=j<0||j>=EX.length;
         b.addEventListener("click",()=>{const t=EX[i];EX[i]=EX[j];EX[j]=t;haptic("tap");renderProgEditor();saveProg();});return b;};
       const del=el("button","btn","Убрать");del.type="button";
-      del.addEventListener("click",()=>{EX.splice(i,1);S.editKey=null;closeSheet();haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
+      del.addEventListener("click",()=>{remember(e);EX.splice(i,1);S.editKey=null;closeSheet();haptic("tap");renderProgEditor();saveProg();toast("Упражнение убрано, записи по нему остались");});
       {const tb=el("button","btn","Техника");tb.type="button";tb.addEventListener("click",()=>openTech(e.lib,e.name));tools.append(tb);}
       tools.append(mv(-1,"↑","Выше"),mv(1,"↓","Ниже"),el("span","grow"),del);
       {const rb=el("button","btn wide replbtn","⇄ Заменить на другое упражнение");rb.type="button";
@@ -1003,9 +1009,9 @@ function workoutReport(date){
     const e=exById(id);if(!e)return;
     n++;
     const cur=recOf(doc,id);
-    const tip=rampTip(e,cur,bw);if(tip)tips.push({n:e.name,t:tip});
-    const lu=levelUp(e,cur);
-    if(lu&&lu.kind==="up")tips.push({n:e.name,t:"все подходы по верху цели на "+wtText(e,lu.from)+" — в следующий раз можно нажать «Прокачать» и взять "+wtText(e,lu.to)});
+    /* what to take next time, in two or three words: the bot keeps its report short */
+    const lu=levelUp(e,cur),tip=lu&&lu.kind==="up"?wtText(e,lu.to):rampShort(e,cur,bw);
+    if(tip)tips.push({n:e.name,t:tip});
     const prev=prevEntry(id,date);if(!prev)return;
     const j=judge(e,prev,cur,bw,{gap:dayGap(prev.d,date)});
     /* the weight went up (by «Прокачать» or by hand) and the heavier set still made the range:
@@ -1062,7 +1068,7 @@ function renderEditList(W,list){
     let armT=null;
     del.addEventListener("click",()=>{
       if(!del.classList.contains("arm")){del.classList.add("arm");del.textContent="Убрать";armT=setTimeout(()=>{del.classList.remove("arm");del.textContent="✕";},3000);return;}
-      clearTimeout(armT);EX.splice(i,1);haptic("hit");renderProgEditor();saveProg();toast("«"+e.name+"» убрано, записи по нему остались");
+      clearTimeout(armT);remember(e);EX.splice(i,1);haptic("hit");renderProgEditor();saveProg();toast("«"+e.name+"» убрано, записи по нему остались");
     });
     {const t=thumb(e);row.append(h);if(t)row.append(t);row.append(main,up,dn,del);}
     list.append(row);
@@ -1324,6 +1330,7 @@ function replaceEx(to,keep){
       if(reset){x.sets=d.sets;x.lo=d.lo;x.hi=d.hi;x.step=d.step;x.unit=d.unit;x.start=0;delete x.dr;}
     }else{
       /* another exercise: its own range, step and unit; the number of sets and the technique stay */
+      if(n===1)remember(cleanEx(unpackEx(pv)));   /* as it was, before the fields above changed */
       x.id=nid;x.lo=d.lo;x.hi=d.hi;x.step=d.step;x.unit=d.unit;x.start=0;x.pv=pv;
       if(isTime(x))delete x.dr;
     }
@@ -1440,10 +1447,27 @@ function exById(id){
   const e=allEx().find(x=>x.id===id);if(e)return e;
   const pv=allEx().find(x=>x.pv&&x.pv[0]===id);if(pv)return cleanEx(unpackEx(pv.pv));
   const d=DEFAULT_EX.find(x=>x.id===id);if(d)return d;
+  if(Array.isArray(S.gone[id]))return cleanEx(unpackEx(S.gone[id]));
   let bd="",def=null;
   for(const [d,doc] of S.docs){if(d>bd&&doc&&doc.xd&&Array.isArray(doc.xd[id])){bd=d;def=doc.xd[id];}}
-  return def?cleanEx(unpackEx(def)):null;
+  if(def)return cleanEx(unpackEx(def));
+  const lx=LIBMAP[id];   /* a catalog exercise removed before the archive existed: its id is the catalog's */
+  return lx?cleanEx({id:id,lib:lx.id,name:lx.name,sets:lx.sets,lo:lx.lo,hi:lx.hi,step:lx.step,unit:lx.unit,start:0}):null;
 }
+/* Exercises that left the program (removed, replaced, a template) are remembered here, so their card and
+   history stay reachable from «Все упражнения». Own key in Telegram's storage, newest kept within 3800 chars. */
+let goneT=null;
+function remember(e){
+  if(!e||!e.id)return;
+  delete S.gone[e.id];S.gone[e.id]=packEx(e).slice(0,11);
+  let txt=JSON.stringify(S.gone);
+  while(txt.length>3800){const k=Object.keys(S.gone)[0];if(!k)break;delete S.gone[k];txt=JSON.stringify(S.gone);}
+  clearTimeout(goneT);goneT=setTimeout(()=>{
+    lsWrite(LSG,S.gone);
+    if(S.mode==="cloud")cs("setItem",GKEY,JSON.stringify(S.gone)).catch(()=>toast("Не сохранилась память об упражнениях — проверь интернет"));
+  },800);
+}
+const groupOf=e=>{if(!e)return "";const lx=e.lib&&libOf(e.lib);return lx?lx.group:(e.g!=null&&e.g>=0?GROUPS[e.g]||"":"");};
 function sessionsOf(id,days){
   return days.map(d=>{const doc=S.docs.get(d),raw=doc&&doc.ex&&doc.ex[id];return hasSets(raw)?{d:d,x:recOf(doc,id)}:null;}).filter(Boolean);
 }
@@ -1472,9 +1496,9 @@ function monthSummary(ym){
 function goDay(d){flush();S.date=d;S.logW=null;setView("log");renderLog();window.scrollTo({top:0});}
 function progItem(it){
   const box=el("div","pi "+it.kind);
-  const head=el("button","pi-head");head.type="button";head.setAttribute("aria-expanded",String(S.pmOpen===it.id));
+  const head=el("button","pi-head");head.type="button";head.setAttribute("aria-haspopup","dialog");
   head.append(el("span","pi-name",it.e.name),el("span","pi-delta",deltaText(it.e,it.j)));
-  head.addEventListener("click",()=>{S.pmOpen=S.pmOpen===it.id?null:it.id;renderProgress();});
+  head.addEventListener("click",()=>openCard(it.id));
   box.append(head);
   const path=el("div","pi-path");
   it.pts.forEach((p,i)=>{
@@ -1490,16 +1514,6 @@ function progItem(it){
   else box.append(el("p","pi-note",it.j.was+" → "+it.j.now+since+". Так держать."));
   if(it.dip)box.append(el("p","pi-note","Последняя тренировка ("+short(it.last.d)+") слабее прошлой — так бывает (сон, отдых между подходами), на итог месяца это не влияет."));
   if(it.tip)box.append(el("p","pi-note tip","💡 "+it.tip+"."));
-  if(S.pmOpen===it.id){
-    /* whole history of this exercise */
-    const all=[...S.docs.keys()].sort(),ss=sessionsOf(it.id,all),e=it.e;
-    const reps=isBody(e)&&!ss.some(s=>setsOf(e,s.x,null).some(q=>q.w));
-    const num=q=>isTime(e)||reps?q.r:q.w;
-    const pts=ss.map(s=>{const b=bestAll(e,s.x,it.bw);return b?{d:s.d,v:num(b),all:setsOf(e,s.x,it.bw).map(num),lab:setChip(e,b)}:null;}).filter(Boolean);
-    const lab=isTime(e)?"время по подходам":reps?"повторы по подходам":isBody(e)?"доп. вес по подходам, кг":e.unit==="кг в руке"?"вес гантели по подходам, кг":"вес по подходам, кг";
-    const ch=el("div","chart");box.append(el("span","eyebrow","Вся история · "+lab),ch,el("p","chart-note","Линия — лучший подход тренировки, точки — все рабочие подходы."));
-    requestAnimationFrame(()=>drawChart(ch,pts));   /* draw once the card is on the page and has a width */
-  }
   return box;
 }
 const gain=it=>{const a=setScore(it.e,it.j.a),b=setScore(it.e,it.j.b);return a?b/a-1:0;};
@@ -1529,9 +1543,104 @@ function renderProgress(){
     box.append(head,el("p","pi-note",fmt(f.v)+" кг ("+short(f.d)+") → "+fmt(l.v)+" кг ("+short(l.d)+")"));
     body.append(box);
   }
+  renderWeek();renderAllEx();
 }
-on("#pmPrev","click",()=>{S.pm=shiftYM(S.pm||curYM(),-1);S.pmOpen=null;haptic("tap");renderProgress();});
-on("#pmNext","click",()=>{const n=shiftYM(S.pm||curYM(),1);if(n<=curYM()){S.pm=n;S.pmOpen=null;haptic("tap");renderProgress();}});
+/* ================= exercise card: the whole history of one exercise =================
+   Opens from the exercise name in the log, from a progress item and from «Все упражнения». History is kept
+   by id, so an exercise removed from the program or replaced keeps its card (see remember). */
+function chartPts(e,ss,bw){
+  const reps=isBody(e)&&!ss.some(s=>setsOf(e,s.x,null).some(q=>q.w));
+  const num=q=>isTime(e)||reps?q.r:q.w;
+  const pts=ss.map(s=>{const b=bestAll(e,s.x,bw);return b?{d:s.d,v:num(b),all:setsOf(e,s.x,bw).map(num),lab:setChip(e,b)}:null;}).filter(Boolean);
+  const lab=isTime(e)?"время по подходам":reps?"повторы по подходам":isBody(e)?"доп. вес по подходам, кг":e.unit==="кг в руке"?"вес гантели по подходам, кг":"вес по подходам, кг";
+  return {pts:pts,lab:lab};
+}
+const recText=(e,a)=>isTime(e)?a.r+tSuf(e):(isBody(e)?(a.w?"+"+fmt(a.w)+" кг":"свой вес"):fmt(a.w)+" кг");
+function openCard(id,all){
+  const e=exById(id);if(!e){toast("Записей по этому упражнению нет");return;}
+  const ss=sessionsOf(id,[...S.docs.keys()].sort()),bw=ss.length?bwOn(ss[ss.length-1].d):null;
+  $("#cardTitle").textContent=e.name;
+  const box=$("#cardBody");box.textContent="";
+  const lx=e.lib?libOf(e.lib):null;
+  {const ph=pic(lx,"card-media");if(ph)box.append(ph);}
+  const info=[groupOf(e),lx&&lx.equip].filter(Boolean).join(" · ");
+  box.append(el("p","target",(info?info+" · ":"")+(ss.length?workouts(ss.length)+", с "+short(ss[0].d):"записей пока нет")+(allEx().some(x=>x.id===id)?"":" · сейчас не в программе")));
+  if(ss.length){
+    const recs=repRecords(e,ss,bw);
+    const rb=el("div","card recs");rb.append(el("span","eyebrow",isTime(e)?"Рекорд":"Рекорды по повторам"));
+    recs.forEach(a=>{
+      const row=el("button","recrow");row.type="button";row.setAttribute("aria-label","Открыть тренировку "+short(a.d));
+      row.append(el("span","rr-r",isTime(e)?"лучшее":a.r+" "+plural(a.r,"повтор","повтора","повторов")),el("b",null,recText(e,a)),el("span","rr-d",short(a.d)));
+      row.addEventListener("click",()=>{closeSheet();goDay(a.d);});rb.append(row);
+    });
+    if(!isTime(e)&&recs.length>1)rb.append(el("p","chart-note","Лучший вес на столько повторов: строка ниже — меньше вес, но больше повторов."));
+    box.append(rb);
+    const c=chartPts(e,ss,bw);
+    if(c.pts.length>1){
+      const ch=el("div","chart");
+      box.append(el("span","eyebrow","График · "+c.lab),ch,el("p","chart-note","Линия — лучший подход тренировки, точки — все рабочие подходы."));
+      requestAnimationFrame(()=>drawChart(ch,c.pts));   /* once the sheet is on the page and has a width */
+    }
+    const hb=el("div","hist");hb.append(el("span","eyebrow","История"));
+    const list=ss.slice().reverse();
+    (all?list:list.slice(0,10)).forEach(p=>{
+      const parts=[setsText(p.x,e)];
+      if(p.x.wu)parts.unshift("разм. "+setsText(p.x.wu,e).replace(/ · /g,", "));
+      if(p.x.dr)parts.push("дроп "+setsText(p.x.dr,e).replace(/ · /g,", "));
+      const row=el("button","histrow");row.type="button";
+      row.append(el("span","hr-d",short(p.d)),el("span","hr-s",parts.join(" → ")+(p.x.ss?" · суперсет":"")));
+      row.addEventListener("click",()=>{closeSheet();goDay(p.d);});hb.append(row);
+    });
+    if(!all&&list.length>10){const more=el("button","linkbtn","Показать все "+list.length);more.type="button";more.addEventListener("click",()=>openCard(id,true));hb.append(more);}
+    box.append(hb);
+  }
+  const tb=el("button","btn","Техника ↗");tb.type="button";tb.addEventListener("click",()=>openTech(e.lib,e.name));box.append(tb);
+  openSheet("cardSheet");$("#cardSheet .body").scrollTop=0;
+}
+/* hard sets per muscle group, this week and last week — the main volume measure for muscle growth.
+   Main muscle of each exercise only (catalog group); cardio is left out */
+function weekSets(){
+  const wk=weekOf(today()),pw=addDays(wk,-7),out={};
+  for(const [d,doc] of S.docs){
+    const w=weekOf(d);if((w!==wk&&w!==pw)||!doc||!doc.ex)continue;
+    Object.keys(doc.ex).forEach(id=>{
+      if(!hasSets(doc.ex[id]))return;
+      const e=exById(id),g=groupOf(e);if(!g||g==="Кардио")return;
+      const o=out[g]||(out[g]={now:0,was:0});o[w===wk?"now":"was"]+=hardSets(e,recOf(doc,id));
+    });
+  }
+  return {wk:wk,out:out};
+}
+function renderWeek(){
+  const box=$("#weekSets");if(!box)return;box.textContent="";
+  const ws=weekSets(),gs=GROUPS.filter(g=>ws.out[g]&&(ws.out[g].now||ws.out[g].was));
+  box.hidden=!gs.length;if(!gs.length)return;
+  const head=el("div","wk-head");head.append(el("b",null,"Подходы за неделю"),el("span",null,short(ws.wk)+" – "+short(addDays(ws.wk,6))));
+  box.append(head);
+  gs.forEach(g=>{
+    const o=ws.out[g],row=el("div","wk-row"),bar=el("span","wk-bar"),fill=el("i");
+    fill.style.width=Math.min(100,o.now/25*100)+"%";if(o.now>=10)fill.className="ok";bar.append(fill);
+    row.append(el("span","wk-g",g),bar,el("b","wk-n",fmt(o.now)),el("span","wk-was",o.was?"было "+fmt(o.was):""));box.append(row);
+  });
+  box.append(el("p","chart-note","Рабочие подходы на основную мышцу упражнения, дроп — пол-подхода. Ориентир для роста — 10–20 в неделю на мышцу (светлая зона). «Было» — прошлая неделя."));
+}
+/* every exercise that has records, newest first — removed and replaced ones too */
+function renderAllEx(){
+  const box=$("#allEx");if(!box)return;box.textContent="";
+  const last={},cnt={};
+  for(const [d,doc] of S.docs){if(!doc||!doc.ex)continue;Object.keys(doc.ex).forEach(id=>{if(!hasSets(doc.ex[id]))return;cnt[id]=(cnt[id]||0)+1;if(!last[id]||d>last[id])last[id]=d;});}
+  const inP=new Set(allEx().map(e=>e.id));
+  const ids=Object.keys(last).filter(id=>exById(id)).sort((a,b)=>last[a]<last[b]?1:last[a]>last[b]?-1:0);
+  box.hidden=!ids.length;if(!ids.length)return;
+  box.append(el("h4","ptitle","Все упражнения · "+ids.length));
+  ids.forEach(id=>{
+    const e=exById(id),row=el("button","exrow");row.type="button";row.setAttribute("aria-haspopup","dialog");
+    const tx=el("span","exr-t");tx.append(el("b",null,e.name),el("small",null,workouts(cnt[id])+" · последний раз "+short(last[id])+(inP.has(id)?"":" · не в программе")));
+    row.append(tx,el("span","exr-go","›"));row.addEventListener("click",()=>openCard(id));box.append(row);
+  });
+}
+on("#pmPrev","click",()=>{S.pm=shiftYM(S.pm||curYM(),-1);haptic("tap");renderProgress();});
+on("#pmNext","click",()=>{const n=shiftYM(S.pm||curYM(),1);if(n<=curYM()){S.pm=n;haptic("tap");renderProgress();}});
 function niceTicks(lo,hi,n){
   const raw=(hi-lo)/n,mag=Math.pow(10,Math.floor(Math.log10(raw)));
   const st=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw)||10*mag;
@@ -1638,6 +1747,9 @@ function keepOldDefault(){
       if(allKeys.indexOf(PKEY)>=0){
         try{const pv=await cs("getItems",[PKEY]);if(pv&&pv[PKEY])setProg(cleanProg(JSON.parse(pv[PKEY])));}catch(e){}
       }
+      if(allKeys.indexOf(GKEY)>=0){
+        try{const gv=await cs("getItems",[GKEY]);const o=gv&&gv[GKEY]?JSON.parse(gv[GKEY]):null;if(o&&typeof o==="object")S.gone=o;}catch(e){}
+      }
       if(allKeys.indexOf(RKEY)>=0){
         try{const rv=await cs("getItems",[RKEY]);const sv=rv&&rv[RKEY]?JSON.parse(rv[RKEY]):null;
           if(sv&&typeof sv==="object"){remindFresh=sv.v!==2;Object.assign(S.remind,sv,{v:2});}}catch(e){}
@@ -1658,6 +1770,7 @@ function keepOldDefault(){
     }catch(e){setStatus("err","Облако Telegram не ответило — пока сохраняю на телефоне");}
   }
   S.mode="local";
+  {const lg=lsRead(LSG);if(lg&&typeof lg==="object")S.gone=lg;}
   const lp=lsRead(LSP);if(lp)setProg(cleanProg(lp));
   S.docs=new Map(Object.entries(lsRead(LS)||{}));
   S.loaded=true;

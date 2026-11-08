@@ -11,10 +11,11 @@ History before 2026-11-07: git log and README / ОПИСАНИЕ.md "После�
 - After editing app.js / cat.js / progress.js, update its `?v=` in index.html (first 8 chars of `shasum`), or Telegram serves the cached file.
 - Telegram CloudStorage: 4096 chars per value (app stops at 4000), 1024 keys per user.
 - Bot KV on the Cloudflare free tier: ~1000 writes/day caps active bot users at a few hundred.
-- app.js is ~1670 lines (over the ~1000 limit): split by screen (log / program / year / bot sync) is a separate task; new pure logic goes to progress.js.
+- app.js is ~1850 lines (over the ~1000 limit): split by screen (log / program / year / bot sync) is a separate task; new pure logic goes to progress.js.
 - Superset links are stored as the next exercise's id (`ln`); saveProg drops links whose pair is no longer adjacent, replaceEx re-points them to a new id.
 
 ## Done
+- 2026-11-07 — exercise card (repRecords frontier, chart, history), «Все упражнения» with removed ones (archive `gone`, exById falls back to it and to the catalog id), weekly hard sets per muscle (hardSets, weekOf), short bot report (≤3 highlights + next-time weights; rampShort) — app.js, progress.js, index.html, bot/worker.js, bot/lines.js, tests
 - 2026-11-07 — drop sets (x.dr, setting 0–3, log rows), supersets (link to next, grouped cards, day ss), «Заменить» asks about history (fresh by default, pv hint), today's substitute from the skipped card (sb/xd), no «просело» after a superset change or a 2+ week break — app.js, progress.js, index.html, tests
 - 2026-11-07 — progress v2: noise band (−1 rep is not a drop), 12-rep cap for the rep↔weight formula, all sets on one weight shown as reps, month compared with the end of the previous month, "Просело" only two workouts in a row; progress math moved to progress.js with node tests — progress.js, app.js, tests/progress.test.js
 

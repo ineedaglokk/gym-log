@@ -1,3 +1,7 @@
 bot/wrangler.toml
 bot/.wrangler/
 .claude/
+forma/server/wrangler.toml
+forma/server/.wrangler/
+backups/
+forma/server/.dev/

@@ -1,0 +1,118 @@
+/* Food: diary, add-food screen, portion sheet, recipe catalogue and recipe page. */
+
+/* ---------- day switcher ---------- */
+.daynav{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.daynav__t{flex:1;text-align:center;font-weight:600;min-height:44px}
+
+/* ---------- diary summary ---------- */
+.fsum{overflow:hidden}
+.fsum::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(280px 170px at 50% 0,color-mix(in srgb,var(--m-food) 15%,transparent),transparent 72%)}
+.fsum>*{position:relative}
+.fsum__top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fsum__side{flex:1;text-align:center;min-width:0}
+.fsum__side b{display:block;font-size:24px}
+.fsum__side span{font-size:12px;color:var(--text-3)}
+.fsum__left{font-size:34px;font-weight:600;line-height:1}
+.fsum__macros{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.fsum__m{padding:10px;border-radius:15px;background:var(--card-2);min-width:0}
+.fsum__m b{display:block;font-size:22px;margin:2px 0 6px;color:var(--c);white-space:nowrap}
+.fsum__m small{font:500 11px var(--ff);color:var(--text-3)}
+.fsum__m .bar__fill{background:var(--c)}
+
+/* ---------- meals ---------- */
+.meal{padding:14px}
+.meal__head{display:flex;align-items:center;gap:12px}
+.meal__ico{width:40px;height:40px;border-radius:13px;flex:none;display:grid;place-items:center;color:var(--m-food);background:color-mix(in srgb,var(--m-food) 15%,transparent)}
+.meal__items{margin-top:10px;border-top:1px solid var(--line)}
+.meal__it{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 2px;min-height:52px;transition:background .15s}
+.meal__it+.meal__it{border-top:1px solid var(--line)}
+.meal__it:active{background:var(--card-2)}
+.meal__n{display:block;font-weight:500;line-height:1.25}
+.meal__it b{font-size:17px;white-space:nowrap}
+
+/* ---------- add food ---------- */
+button.topbar__title{min-height:44px}
+button.topbar__title span{display:inline-flex;align-items:center;gap:4px}
+.frow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px 10px 16px;min-height:60px;position:relative;transition:background .15s}
+.frow+.frow::before{content:"";position:absolute;top:0;left:16px;right:0;height:1px;background:var(--line)}
+.frow:active{background:var(--card-2)}
+.frow__n{display:block;font-weight:500;line-height:1.25}
+.frow__k{font-size:17px;white-space:nowrap}
+.frow__plus{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;color:var(--accent);background:var(--accent-soft)}
+.frow__emoji{width:40px;height:40px;border-radius:12px;flex:none;display:grid;place-items:center;font-size:22px;background:var(--card-2)}
+.cats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cats__it{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--line);text-align:left;min-height:56px;transition:transform .16s var(--ease)}
+.cats__it:active{transform:scale(.96)}
+.cats__it b{font-size:14px;font-weight:600;line-height:1.2}
+.cats__it small{font:500 13px var(--ffn);color:var(--text-3)}
+
+/* live numbers in the portion sheet */
+.pm{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:8px}
+.pm>div{padding:10px 4px;border-radius:15px;text-align:center;background:var(--card-2)}
+.pm b{display:block;font-size:22px;line-height:1.1}
+.pm span{font-size:11px;color:var(--text-3)}
+.pm__k{background:color-mix(in srgb,var(--m-food) 15%,transparent)!important}
+.pm__k b{color:var(--m-food);font-size:26px}
+.pm__m b{color:var(--c)}
+
+/* ---------- recipe catalogue ---------- */
+.cols{display:flex;gap:10px;overflow-x:auto;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none;scroll-snap-type:x proximity}
+.cols::-webkit-scrollbar{display:none}
+.col-card{
+  flex:none;width:136px;padding:12px;border-radius:20px;text-align:left;color:#fff;position:relative;overflow:hidden;scroll-snap-align:start;
+  background:linear-gradient(150deg,hsl(var(--hue) 70% 48%),hsl(calc(var(--hue) + 22) 66% 32%));
+  box-shadow:0 10px 22px -12px hsl(var(--hue) 70% 40%);transition:transform .2s var(--ease),box-shadow .2s;
+}
+.col-card::after{content:"";position:absolute;right:-26px;bottom:-30px;width:92px;height:92px;border-radius:50%;background:rgba(255,255,255,.13)}
+.col-card:active{transform:scale(.95)}
+.col-card.is-on{box-shadow:0 0 0 3px var(--bg),0 0 0 5px hsl(var(--hue) 70% 55%)}
+.col-card__ico{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:rgba(255,255,255,.2)}
+.col-card b{display:block;margin-top:14px;font-size:15px;line-height:1.15;position:relative;z-index:1}
+.col-card small{display:block;font-size:11px;opacity:.85;margin-top:3px;position:relative;z-index:1}
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rc{border-radius:20px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden;cursor:pointer;transition:transform .2s var(--ease);min-width:0}
+.rc:active{transform:scale(.97)}
+.rc__cover{
+  position:relative;aspect-ratio:1.18;display:grid;place-items:center;overflow:hidden;
+  background:radial-gradient(120% 90% at 22% 12%,hsl(var(--hue) 84% 64%),hsl(calc(var(--hue) + 10) 72% 44%) 62%,hsl(calc(var(--hue) + 18) 68% 30%));
+}
+.rc__cover::before{content:"";position:absolute;width:78%;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.16);box-shadow:0 0 0 14px rgba(255,255,255,.07)}
+.rc__emoji{position:relative;font-size:54px;line-height:1;filter:drop-shadow(0 8px 10px rgba(0,0,0,.28));transition:transform .4s var(--spring)}
+.rc:active .rc__emoji{transform:scale(1.12) rotate(-6deg)}
+.rc__fav{position:absolute;top:6px;right:6px;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:#fff;background:rgba(0,0,0,.22);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:transform .3s var(--spring)}
+.rc__fav:active{transform:scale(.8)}
+.rc__fav.is-on{color:#FF5C7A;background:rgba(255,255,255,.92)}
+.rc__time{position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:99px;font-size:12px;font-weight:600;color:#fff;background:rgba(0,0,0,.28);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.rc__body{padding:10px 12px 12px}
+.rc__name{font-size:14px;font-weight:600;line-height:1.25;min-height:2.5em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rc__meta{display:flex;align-items:baseline;gap:4px;margin-top:6px;font-size:12px;color:var(--text-3)}
+.rc__meta b{font-size:17px;color:var(--text)}
+.rc__p{margin-left:auto;padding:2px 7px;border-radius:7px;font-weight:600;color:var(--mp);background:color-mix(in srgb,var(--mp) 14%,transparent)}
+
+/* ---------- recipe page ---------- */
+.rhero{
+  position:relative;margin:calc(-10px - var(--safe-t)) -16px 0;height:300px;display:grid;place-items:center;overflow:hidden;
+  background:radial-gradient(110% 80% at 25% 10%,hsl(var(--hue) 84% 64%),hsl(calc(var(--hue) + 10) 72% 44%) 60%,hsl(calc(var(--hue) + 18) 66% 28%));
+}
+.rhero::before{content:"";position:absolute;width:230px;height:230px;border-radius:50%;background:rgba(255,255,255,.16);box-shadow:0 0 0 30px rgba(255,255,255,.08),0 0 0 70px rgba(255,255,255,.04)}
+.rhero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:110px;background:linear-gradient(transparent,var(--bg))}
+.rhero__emoji{position:relative;font-size:128px;line-height:1;filter:drop-shadow(0 18px 20px rgba(0,0,0,.32));animation:pop .7s var(--spring) both}
+.rinfo{position:relative;margin-top:-34px}
+.rfav.is-on{color:#FF5C7A}
+.rstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:18px}
+.rstat{padding:12px 4px;border-radius:17px;text-align:center;background:color-mix(in srgb,var(--c) 13%,var(--card));border:1px solid var(--line)}
+.rstat b{display:block;font-size:24px;line-height:1.1;color:var(--c)}
+.rstat span{font-size:11px;color:var(--text-2)}
+.rsteps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.rsteps li{display:flex;gap:12px;padding:14px;border-radius:18px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
+.rsteps li>span{width:30px;height:30px;border-radius:10px;flex:none;display:grid;place-items:center;font-size:15px;color:var(--accent);background:var(--accent-soft)}
+.rsteps p{line-height:1.45;padding-top:3px}
+.rtip{display:flex;gap:12px;align-items:flex-start;background:color-mix(in srgb,var(--m-sleep) 10%,var(--card))}
+.rtip>svg{color:var(--m-sleep);margin-top:2px}
+
+@media (max-width:359px){
+  .fsum .ringbox{transform:scale(.86);margin:-10px}
+  .fsum__side b{font-size:20px}
+  .rc__emoji{font-size:46px}
+  .pm b{font-size:18px}
+}

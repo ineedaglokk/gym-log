@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0C11">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ФОРМА">
+<meta name="description" content="ФОРМА — тренировки, питание и прогресс в одном месте.">
+<title>ФОРМА</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/screens-day.css">
+<link rel="stylesheet" href="css/screens-gym.css">
+<link rel="stylesheet" href="css/screens-food.css">
+<link rel="stylesheet" href="css/screens-more.css">
+</head>
+<body>
+<div id="app">
+  <main id="view" aria-live="off"></main>
+  <nav id="nav" class="nav" aria-label="Разделы"></nav>
+</div>
+<div id="sheets"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<!-- Shared with the Shlyopa mini app (copies, see shared/README.md): exercise catalog and progress math -->
+<script src="shared/cat.js"></script>
+<script src="shared/progress.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

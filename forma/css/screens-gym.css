@@ -1,0 +1,127 @@
+/* Gym: program chooser, week plan, workout log, program editor, library, exercise card. */
+
+/* ---------- chooser and workout list ---------- */
+.tpl{width:100%;text-align:left;display:block}
+.tpl__thumbs,.wrow__thumbs{display:flex;align-items:center}
+.tpl__thumbs .thumb,.wrow__thumbs .thumb{border:2.5px solid var(--card);margin-right:-10px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.tpl--own{display:flex;align-items:center;gap:14px;color:var(--text-3)}
+.tpl--own .h3{color:var(--text)}
+.wrow{width:100%;text-align:left;display:block}
+.wrow__more{margin-left:18px;font-size:14px;color:var(--text-3)}
+.wrow__tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+
+/* ---------- week plan ---------- */
+.wk{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.wk__day{display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 0;min-width:0;transition:transform .16s var(--ease)}
+.wk__day:active{transform:scale(.92)}
+.wk__wd{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3)}
+.wk__mark{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font:600 15px var(--ffn);color:var(--text-3);box-shadow:inset 0 0 0 1.5px var(--line-2)}
+.wk__name{font-size:10px;color:var(--text-3);max-width:100%;padding:0 1px}
+.wk__day--rest .wk__mark{box-shadow:none;background:var(--card-2)}
+.wk__day--rest .wk__mark::after{content:"";width:5px;height:5px;border-radius:50%;background:var(--text-3);opacity:.5}
+.wk__day--planned .wk__mark{color:var(--text-2)}
+.wk__day--today .wk__mark{color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent);background:var(--accent-soft)}
+.wk__day--today .wk__wd,.wk__day--today .wk__name{color:var(--accent)}
+.wk__day--done .wk__mark{background:var(--good);color:#fff;box-shadow:0 6px 16px -6px var(--good)}
+.is-entering .wk__day--done .wk__mark{animation:pop .5s var(--spring) both}
+.wk__day--missed .wk__mark{box-shadow:inset 0 0 0 1.5px var(--line-2);color:var(--text-3);opacity:.7;border-style:dashed}
+
+/* three small numbers in a row */
+.minis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mini{padding:14px 8px;border-radius:18px;background:var(--card);border:1px solid var(--line);text-align:center;box-shadow:var(--shadow);min-width:0}
+.mini b{display:block;font-size:24px;line-height:1.1;white-space:nowrap}
+.mini span{display:block;font-size:11px;color:var(--text-3);margin-top:4px;line-height:1.25}
+
+/* horizontal bars (weekly sets per muscle) */
+.hbars{display:grid;gap:10px}
+.hbars__row{display:grid;grid-template-columns:92px 1fr 34px;align-items:center;gap:10px;font-size:13px}
+.hbars__l{color:var(--text-2)}
+.hbars__track{position:relative;height:10px;border-radius:99px;background:var(--card-3);overflow:hidden}
+.hbars__band{position:absolute;top:0;bottom:0;background:var(--good-soft);border-left:1px dashed var(--good);border-right:1px dashed var(--good)}
+.hbars__fill{position:absolute;left:0;top:0;bottom:0;border-radius:99px;transform-origin:left;transition:width .7s var(--ease)}
+.is-entering .hbars__fill{animation:grow-x .8s var(--ease) both}
+.hbars__v{text-align:right;font-size:14px}
+
+/* ---------- workout log ---------- */
+.wlog__chips{margin-bottom:0}
+.wlog__prog{padding:12px 14px;border-radius:18px;background:var(--card);border:1px solid var(--line)}
+.wlog__bw{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px}
+.ex{padding:14px}
+.ex__head{display:flex;align-items:center;gap:12px;width:100%;text-align:left;color:var(--text-3)}
+.ex__name{display:block;font-size:16px;font-weight:600;line-height:1.25;color:var(--text)}
+.ex__meta{display:block;font-size:13px;color:var(--text-3);margin-top:2px}
+.ex__prev{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:12px;font-size:13px}
+.ex__prev i{font:500 13px var(--ffn);font-style:normal;padding:3px 8px;border-radius:8px;background:var(--card-2);color:var(--text-2)}
+.sets{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:12px}
+.set{display:flex;align-items:center;gap:8px;min-width:0}
+.set__n{width:26px;height:26px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:13px;color:var(--text-3);background:var(--card-2);transition:background .25s,color .25s}
+.set__in{
+  flex:1 1 0;width:0;min-width:0;height:48px;padding:0 4px;border-radius:14px;border:1.5px solid transparent;background:var(--card-2);outline:none;
+  text-align:center;font:500 20px var(--ffn);letter-spacing:.02em;transition:border-color .18s,background .18s;appearance:none;-webkit-appearance:none;
+}
+.set__in:focus{border-color:var(--accent);background:var(--card)}
+.set__in::placeholder{color:var(--text-3);opacity:.75}
+.set__x{color:var(--text-3);font-size:15px;flex:none}
+.set__unit{width:38px;flex:none;font-size:12px;color:var(--text-3)}
+.set__ok{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;color:transparent;box-shadow:inset 0 0 0 1.5px var(--line-2);transition:background .2s,box-shadow .2s}
+.set.is-done .set__ok{background:var(--good);color:#fff;box-shadow:none;animation:pop .4s var(--spring)}
+.set.is-done .set__n{background:var(--good-soft);color:var(--good)}
+.set--wu .set__n{background:var(--warn-soft);color:var(--warn)}
+.set--wu .set__in{height:42px;font-size:17px}
+.set__rm{width:28px;height:44px;flex:none;display:grid;place-items:center;color:var(--text-3)}
+.ex__hint{display:grid;gap:8px;justify-items:start}
+.ex__hint:not(:empty){margin-top:12px}
+.ex__hint .badge{height:28px;font-size:13px;animation:rise .35s var(--ease) both}
+.ex__tip{display:flex;gap:8px;font-size:13px;color:var(--text-2);line-height:1.35}
+.ex__tip svg{color:var(--warn);margin-top:2px}
+.ex__up{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:14px;background:var(--accent-soft);font-size:13px;color:var(--text)}
+.ex__up span{flex:1}
+.ex__note{margin-top:10px;min-height:64px}
+.ex__tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.ex__tools button{display:inline-flex;align-items:center;gap:5px;min-height:36px;padding:0 11px;border-radius:11px;background:var(--card-2);font-size:13px;font-weight:500;color:var(--text-2);transition:transform .15s var(--ease)}
+.ex__tools button:active{transform:scale(.94)}
+.ex--skipped{opacity:.75}
+
+/* ---------- program editor ---------- */
+.pdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.pday{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:54px;border-radius:14px;background:var(--card-2);color:var(--text-2);border:1.5px solid transparent;transition:all .2s var(--ease);min-width:0}
+.pday b{font-size:14px;font-weight:600;text-transform:uppercase}
+.pday small{font-size:9px;color:var(--text-3);max-width:100%;overflow:hidden;white-space:nowrap}
+.pday.is-other{opacity:.6}
+.pday.is-on{background:var(--accent);color:#fff;box-shadow:0 8px 18px -8px var(--accent)}
+.pday:active{transform:scale(.92)}
+.pex{text-align:left}
+.pex__name{display:block;line-height:1.25}
+
+/* ---------- library ---------- */
+.lib__count{margin:0 2px 8px}
+.lib__row{padding:8px 8px 8px 12px}
+.lib__main{display:flex;align-items:center;gap:12px;flex:1;min-width:0;text-align:left;min-height:56px}
+.lib__name{display:block;line-height:1.25}
+.lib__added{color:var(--good);background:var(--good-soft)}
+
+/* ---------- exercise card ---------- */
+.topbar--over{position:absolute;left:0;right:0;top:0;margin:0;padding:calc(var(--safe-t) + 10px) 12px 0;background:none;z-index:5}
+.exh{position:relative;margin:calc(-10px - var(--safe-t)) -16px 0;height:260px;overflow:hidden;background:#fff}
+.exh img{width:100%;height:100%;object-fit:cover}
+.exh__fade{position:absolute;left:0;right:0;bottom:0;height:90px;background:linear-gradient(transparent,var(--bg))}
+.exh--plain{display:grid;place-items:center;color:rgba(255,255,255,.85);background:linear-gradient(150deg,hsl(var(--hue) 62% 44%),hsl(calc(var(--hue) + 40) 60% 26%))}
+.exinfo{position:relative;margin-top:-18px}
+.exinfo+.minis{margin-top:20px}
+.recs{display:flex;gap:10px;overflow-x:auto;margin:0 -16px;padding:2px 16px;scrollbar-width:none}
+.recs::-webkit-scrollbar{display:none}
+.rec{flex:none;min-width:98px;padding:12px;border-radius:18px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
+.rec b{display:block;font-size:20px;white-space:nowrap}
+.rec span{display:block;font:500 15px var(--ffn);color:var(--accent)}
+.rec small{display:block;margin-top:6px;font-size:11px;color:var(--text-3)}
+.hist{align-items:flex-start;padding-top:12px;padding-bottom:12px}
+.hist__date{width:52px;flex:none;font-size:13px;color:var(--text-3);padding-top:3px}
+.hist__sets{display:flex;flex-wrap:wrap;gap:5px}
+.hist__sets i{font:500 13px var(--ffn);font-style:normal;padding:3px 8px;border-radius:8px;background:var(--card-2)}
+.hist__sets small{flex-basis:100%;font-size:12px;color:var(--text-3)}
+
+@media (max-width:359px){
+  .set{gap:6px}.set__unit{width:30px;font-size:11px}.set__in{font-size:18px}
+  .hbars__row{grid-template-columns:78px 1fr 30px}
+  .wk__mark{width:34px;height:34px}
+}

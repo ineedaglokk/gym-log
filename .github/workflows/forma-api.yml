@@ -1,0 +1,79 @@
+# Deploys the FORMA server (forma/server/worker.js: accounts, journal sync, assistants) to Cloudflare Workers,
+# with a D1 database for the data, then checks the live server end to end with a throwaway account.
+# Needs two repository secrets: CLOUDFLARE_API_TOKEN (Workers Scripts, D1, Workers AI) and CLOUDFLARE_ACCOUNT_ID.
+name: Deploy FORMA server
+on:
+  push:
+    branches: [main]
+    paths: ["forma/server/**", ".github/workflows/forma-api.yml"]
+  workflow_dispatch:
+concurrency: forma-api-deploy
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Tests
+        working-directory: forma
+        run: node --test
+      - name: Check secrets
+        run: |
+          missing=0
+          for v in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Repository secret $v is not set"; missing=1; fi
+          done
+          exit $missing
+      - name: D1 database
+        run: |
+          api="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database"
+          auth="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          code=$(curl -sS -o list.json -w '%{http_code}' -H "$auth" "$api?name=forma")
+          if [ "$code" != "200" ]; then
+            echo "::error::Cloudflare refused to list D1 databases (HTTP $code). The API token needs the permission Account → D1 → Edit."
+            jq -c '.errors' list.json; exit 1
+          fi
+          id=$(jq -r '.result[] | select(.name=="forma") | .uuid' list.json | head -n1)
+          if [ -z "$id" ]; then
+            id=$(curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" -d '{"name":"forma"}' "$api" | jq -r '.result.uuid')
+            echo "Created D1 database forma: $id"
+          fi
+          test -n "$id" && test "$id" != "null"
+          echo "D1_ID=$id" >> "$GITHUB_ENV"
+          sed "s/__D1_ID__/$id/" forma/server/wrangler.toml.tpl > forma/server/wrangler.toml
+          # the schema only creates what is missing, so it is safe to apply on every deploy
+          sql=$(grep -v '^\s*--' forma/server/schema.sql | jq -Rs .)
+          curl -fsS -X POST -H "$auth" -H "Content-Type: application/json" -d "{\"sql\":$sql}" "$api/$id/query" | jq -c '{success, errors}'
+      - name: Deploy worker
+        working-directory: forma/server
+        run: npx --yes wrangler@3 deploy
+      - name: Check the live server
+        run: |
+          sub=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain')
+          base="https://forma-api.$sub.workers.dev"
+          echo "::notice title=FORMA server::$base"
+          echo "FORMA server: $base" >> "$GITHUB_STEP_SUMMARY"
+          sleep 5
+          test "$(curl -fsS "$base/")" = "ok"
+          nick="ci$(date +%s)"; pass=$(openssl rand -hex 8)
+          echo "CI_NICK=$nick" >> "$GITHUB_ENV"
+          j='content-type: application/json'
+          token=$(curl -fsS -X POST "$base/auth/register" -H "$j" -d "{\"nick\":\"$nick\",\"password\":\"$pass\"}" | jq -r '.token')
+          test ${#token} = 64
+          curl -fsS -X POST "$base/sync" -H "$j" -H "authorization: Bearer $token" -d '{"since":0,"changes":[{"k":"profile","v":{"name":"ci"}}]}' | jq -c .
+          curl -fsS -X POST "$base/sync" -H "$j" -H "authorization: Bearer $token" -d '{"since":0}' | jq -e '.changes[0].v.name == "ci"'
+          chat=$(curl -sS -m 90 -w '\n%{http_code}' -X POST "$base/chat" -H "$j" -H "authorization: Bearer $token" \
+            -d '{"role":"trainer","context":"","messages":[{"role":"user","content":"Сколько рабочих подходов на грудь в неделю? Ответь одной фразой."}]}')
+          echo "$chat" | head -n -1 | jq -c '{reply: ((.reply // .error) | .[0:400]), left}'
+          if [ "$(echo "$chat" | tail -n1)" != "200" ]; then echo "::error::The assistants did not answer (HTTP $(echo "$chat" | tail -n1)). Check MODEL in wrangler.toml.tpl and the token's Workers AI permission."; exit 1; fi
+      - name: Remove the throwaway account
+        if: always() && env.CI_NICK != ''
+        run: |
+          q="DELETE FROM docs WHERE user IN (SELECT id FROM users WHERE nick = '$CI_NICK'); DELETE FROM sessions WHERE user IN (SELECT id FROM users WHERE nick = '$CI_NICK'); DELETE FROM usage WHERE user IN (SELECT id FROM users WHERE nick = '$CI_NICK'); DELETE FROM users WHERE nick = '$CI_NICK';"
+          curl -fsS -X POST -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg sql "$q" '{sql: $sql}')" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/$D1_ID/query" | jq -c '{success, errors}'

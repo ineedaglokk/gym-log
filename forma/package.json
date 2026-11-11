@@ -1,0 +1,9 @@
+{
+  "name": "forma",
+  "private": true,
+  "type": "module",
+  "description": "FORMA: personal fitness web app (workouts, nutrition, progress). Static, no build, no dependencies.",
+  "scripts": {
+    "test": "node --test"
+  }
+}

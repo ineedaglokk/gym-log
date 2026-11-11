@@ -19,10 +19,10 @@ Telegram Mini App: a full-body workout journal (sets, weights, reps, progress, y
 - Run locally: `python3 -m http.server 8000` in the root → http://localhost:8000 (local mode, localStorage; no cloud, no bot).
 - Tests (progress math): `node --test` (node built-in runner, no deps; `tests/progress.test.js`).
 - Syntax check: `node --check app.js && node --check progress.js && node --check cat.js && node --check --input-type=module < bot/worker.js`
-- Local preview config: `.claude/launch.json` (python http.server on 8765, gitignored). No linter.
+- Local preview config: `.claude/launch.json` (gitignored): `gym-log` = python http.server on 8765, `forma-api` = FORMA's local server on 8787. No linter.
 
 ## Structure
-- `index.html` — markup + all CSS (style ends ~line 411); loads `cat.js`, `progress.js`, `app.js`, each with `?v=…`.
+- `index.html` — markup + all CSS (style ends ~line 465); loads `cat.js`, `progress.js`, `app.js`, each with `?v=…`.
 - `progress.js` — pure progress math (`window.GymProgress`, also `require`-able): `cmpSets`, `judge`, `periodTrend`, `levelUp`, `rampTip`.
 - `app.js` — the rest of the app in one IIFE: storage (`persist`, `cs`), views (`renderLog`, `renderProgEditor`, `renderYear`, `renderProgress`), library, bot sync (`syncRemind`, `sendReport`), boot at the end.
 - `cat.js` — `window.CAT`: 11 muscle groups, equipment, 1045 exercises (fitpush.ru slugs, photo flag), `m` = old seto names → new ids.
@@ -30,6 +30,8 @@ Telegram Mini App: a full-body workout journal (sets, weights, reps, progress, y
 - `bot/worker.js` — routes `/tg` (webhook, secret = sha256("shlepa-hook:"+token)[:48]), `/sync`, `/workout` (both verify Telegram initData HMAC, max age 7 days), `scheduled` → `tick()`.
 - `bot/lines.js` — all bot phrases (REMIND, FUN, ANSWER, AFTER, …); safe to extend.
 - `docs/analysis-2026-11.md` — progress-logic flaws, competitors, science, planned design (progress v2, drop sets, supersets).
+- `docs/PROJECT_AUDIT.md`, `docs/FEATURE_GAP_ANALYSIS.md`, `docs/IMPROVEMENT_ROADMAP.md` — audit of 2026-11-10: data-loss paths, gap vs ONLYFITS reference, P0–P3 plan (nothing implemented yet).
+- `forma/` — FORMA, a separate full fitness web app (workouts + food + recipes + stats + assistants). Own `forma/CLAUDE.md`: read it before touching anything there. It copies `cat.js`, `progress.js`, `img/` (keep copies in sync). `node --test` in the root also runs its tests.
 - `README.md` — full feature/progress-logic description (RU). `ОПИСАНИЕ.md` — short RU summary, local only (not in repo).
 
 ## Data
@@ -53,10 +55,10 @@ Telegram Mini App: a full-body workout journal (sets, weights, reps, progress, y
 
 ## Current status
 - Done: live and working (last deploy 2026-11-08: exercise card, weekly sets, short bot report). Both live URLs answer.
-- In progress: nothing.
-- Git: folder connected to `origin` = `ineedaglokk/gym-log` (2026-11-07), `main` tracks `origin/main`. `ОПИСАНИЕ.md` is local only (untracked).
+- In progress: the owner chose to build a separate app instead of growing the mini app — FORMA in `forma/` (first full version + accounts with sync 2026-11-11, server not deployed; status in `forma/CLAUDE.md`). The mini app and bot are untouched; the audit plan in `docs/IMPROVEMENT_ROADMAP.md` is on hold.
+- Git: folder connected to `origin` = `ineedaglokk/gym-log` (2026-11-07). Work branch `forma-app` (from `main` at c675c68), nothing committed: `forma/`, audit docs, CLAUDE.md, DEVLOG.md, .gitignore are uncommitted. `ОПИСАНИЕ.md` is local only (untracked).
 - Done 2026-11-07: progress v2 (noise band, 12-rep cap, month vs previous month, "Просело" only twice in a row) — live (commit b90fd56).
 - Done 2026-11-07: drop sets, supersets, replace with history choice + today's substitute, no «просело» after superset change / 2-week break — live (commit 36c145e).
 - Done 2026-11-07: exercise card (records by reps, chart, history), «Все упражнения» incl. removed (archive key `gone`), weekly sets per muscle, short bot report — live (pushed 2026-11-08).
-- Next step: none set (effort tap from docs/analysis-2026-11.md is still open).
-- Open issues: `app.js` ~1850 lines (split by screen = separate task); KV free tier caps bot users. Details in DEVLOG.
+- Next step: FORMA — owner's review, then deploy (see `forma/CLAUDE.md`). Mini app: none set (effort tap from docs/analysis-2026-11.md is still open).
+- Open issues: records saved while the cloud is down or a cloud write fails can be lost on the next start (audit D1–D2); `app.js` ~1780 lines (split by screen = separate task); KV free tier caps bot users. Details in DEVLOG.

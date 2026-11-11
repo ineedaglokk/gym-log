@@ -8,8 +8,10 @@ Shlyopa Telegram mini app and bot in the repo root (they keep working as they ar
 - Static site: plain HTML/CSS/ES modules, no build, no dependencies. Fonts from Google Fonts (Oswald, Golos Text).
 - Data: every person's journal lives in their account on the server; the device keeps a full copy (IndexedDB,
   localStorage fallback) and works offline. Without a server address (`API_URL` empty) the app runs without accounts.
-- Server: `server/worker.js` — Cloudflare Worker + D1 (accounts, sync) + Workers AI (assistants). NOT deployed yet;
-  `server/dev.js` runs the same code locally on Node's SQLite.
+- Server: `server/worker.js` — Cloudflare Worker + D1 (accounts, sync) + Workers AI (assistants), deployed by
+  GitHub Actions (`.github/workflows/forma-api.yml`, push to `main` touching `forma/server/**`). `server/dev.js`
+  runs the same code locally on Node's SQLite; the app opened from localhost or a home-network address uses it
+  (never the real server), the published app uses `API_URL`.
 
 ## Commands
 - Run the site: `python3 -m http.server 8765` in the repo root → http://localhost:8765/forma/ (preview "gym-log").
@@ -67,15 +69,16 @@ Shlyopa Telegram mini app and bot in the repo root (they keep working as they ar
   toast, workout summary / stories, plate calculator. No paid / free split.
 - Assistants run on Cloudflare Workers AI (pay per question, free daily allowance), not a self-hosted model:
   a model kept in memory on Railway costs from ~$60 a month, a sleeping one answers for minutes.
+  Model `@cf/qwen/qwen3.8-27b` with `reasoning_effort: low` (qwq-32b / qwen3-30b are retired 2026-11-20).
 - Recipe covers are emoji on gradients: no licensed photos available.
 
 ## Current status
 - Done 2026-11-11: first full version (all screens) + accounts with sync between devices; checked in the preview
   with the local server at 320 / 375 / 393 / 430 px.
-- Not done: the server is not deployed, so accounts, sync and assistants work only locally (needs the owner's go,
-  a check of the model id and of the CPU limit, see `server/README.md`); not tried on a real iPhone; no supersets /
-  drop sets / replace-exercise; no barcode scanner; no import of the mini app's journal; no reminders; no "delete
-  my account" button.
-- Git: branch `forma-app`, nothing committed.
-- Next step: owner looks at the app → fixes → deploy the server (Cloudflare) and put its address into `API_URL` →
-  deploy the site to Pages.
+- Live 2026-11-11: site https://ineedaglokk.github.io/gym-log/forma/, server https://forma-api.iwbbtbtb.workers.dev
+  (D1 database `forma`). The deploy workflow's live check passed: sign-up, sync, an assistant's answer in ~8 s.
+  The token `CLOUDFLARE_API_TOKEN` ("Edit Cloudflare Workers") got D1 Write + Workers AI Read for this.
+- Not done: not tried on a real iPhone; no supersets / drop sets / replace-exercise; no barcode scanner; no import
+  of the mini app's journal; no reminders; no "delete my account" button.
+- Git: work branch `forma-app`; deploy = fast-forward `main` to it and push (owner's go given 2026-11-11 for FORMA).
+- Next step: owner signs up and reviews on the phone → fixes. When everyone has an account: `SIGNUP = "off"`.

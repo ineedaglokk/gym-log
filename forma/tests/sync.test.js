@@ -10,6 +10,7 @@ import { d1 } from "../server/d1-node.js";
 import { memoryBackend } from "../js/core/db.js";
 import { S, init, save, updateDay, getDay, flush, wipe, getMeta } from "../js/core/store.js";
 import { account, signedIn, accountsOn, apiUrl, ApiError, errorText } from "../js/core/account.js";
+import { API_URL } from "../js/config.js";
 import { startSync, syncNow, syncInfo, mergeDay } from "../js/core/sync.js";
 import { signUp, signIn, signOut, changePassword } from "../js/domain/session.js";
 import { coachReady } from "../js/domain/coach.js";
@@ -40,7 +41,7 @@ async function use(name) {
 const food = (id, k = 100) => ({ id, m: "l", n: "Еда " + id, g: 100, k, p: 10, f: 5, c: 20 });
 const ids = date => getDay(date).food.map(i => i.id);
 
-test("the app uses accounts only where a server address exists", () => {
+test("a development copy talks to the local server, the published one to the real server", () => {
   assert.equal(apiUrl(), "http://localhost:8787");
   assert.ok(accountsOn());
   /* a phone in the same Wi-Fi opens the app by this computer's address: the local server is on the same host */
@@ -48,9 +49,11 @@ test("the app uses accounts only where a server address exists", () => {
     globalThis.location = { hostname: host };
     assert.equal(apiUrl(), api);
   }
+  assert.match(API_URL, /^https:\/\//);
   for (const host of ["ineedaglokk.github.io", "172.32.0.1", "192.169.1.1", "evil-192.168.1.1.example"]) {
     globalThis.location = { hostname: host };
-    assert.equal(accountsOn(), false, host);   /* API_URL is empty until the server is deployed */
+    assert.equal(apiUrl(), API_URL, host);
+    assert.ok(accountsOn());
   }
   globalThis.location = { hostname: "localhost" };
 });

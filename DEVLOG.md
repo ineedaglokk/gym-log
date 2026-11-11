@@ -29,6 +29,12 @@ History before 2026-11-07: git log and README / ОПИСАНИЕ.md "После�
 - 2026-11-07 — progress v2: noise band (−1 rep is not a drop), 12-rep cap for the rep↔weight formula, all sets on one weight shown as reps, month compared with the end of the previous month, "Просело" only two workouts in a row; progress math moved to progress.js with node tests — progress.js, app.js, tests/progress.test.js
 
 ## Bugs & fixes
+### FORMA server deploy: D1 refused the token (2026-11-11)
+- Symptom: `Cloudflare refused to list D1 databases (HTTP 401)` / `{"code":10000,"message":"Authentication error"}` in `Deploy FORMA server`.
+- Cause: the repo secret `CLOUDFLARE_API_TOKEN` was made from the "Edit Cloudflare Workers" template for the bot: no D1, no Workers AI.
+- Fixed by: the owner added Account → D1 → Write and Account → Workers AI → Read to that token (same token value, nothing to change in GitHub); re-run passed.
+- Prevention: the workflow's first Cloudflare call names the missing permission; keep the token's old permissions (the bot deploy needs them).
+
 ### [BUG] «⇄ Заменить» carried history to a different exercise
 - Symptom: after replacing an exercise, "прошлый раз" showed the old exercise's sets and weights were prefilled from it; progress compared two different movements (16 kg dumbbells vs a 50 kg machine).
 - Cause: replace kept the program slot id; records are keyed by id.

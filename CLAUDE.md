@@ -12,7 +12,7 @@ Telegram Mini App: a full-body workout journal (sets, weights, reps, progress, y
 - App: GitHub Pages, legacy build from `main` / root → https://ineedaglokk.github.io/gym-log/ (auto on every push, ~25 s).
 - Bot: `.github/workflows/bot.yml` on push to `main` touching `bot/**` (or manual run): finds/creates KV namespace `shlepa-bot`, writes `bot/wrangler.toml` from the `.tpl`, `wrangler@3 deploy`, puts `BOT_TOKEN` secret, sets Telegram webhook `<worker>/tg` + commands.
 - Worker URL: https://shlepa-bot.iwbbtbtb.workers.dev (GET `/` → "Шлёпа на месте 💪").
-- Repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `BOT_TOKEN`. No local `.env`; tokens live only in GitHub secrets.
+- Repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `BOT_TOKEN`. No local `.env`; tokens live only in GitHub secrets. The Cloudflare token also deploys FORMA's server (has D1 Write + Workers AI Read since 2026-11-11); never remove its old permissions — the bot deploy needs them.
 - Mini App link is set in @BotFather (Configure Mini App / Menu Button) to the Pages URL.
 
 ## Commands
@@ -45,6 +45,7 @@ Telegram Mini App: a full-body workout journal (sets, weights, reps, progress, y
 - Hardcoded URLs: `BOT_API` in `app.js`; `APP_URL`/`APP_ORIGIN` in `bot/worker.js` (CORS allows only the Pages origin). Change both together if hosting moves.
 - Workout records are keyed by program exercise id, not name — never change ids on rename/replace (history depends on it).
 - Push to `main` = prod deploy (app always, bot if `bot/**` changed). Only on explicit go.
+- Owner, 2026-11-11: Шлёпа (mini app + bot) must keep working while FORMA is built. FORMA changes stay inside `forma/` and its own workflow; never touch root app files, `bot/**`, the `shlepa-bot` worker or its KV.
 - Photos: Free Exercise DB, license unknown (likely Bodybuilding.com). Don't add more without checking.
 
 ## Decisions (why)
@@ -55,10 +56,10 @@ Telegram Mini App: a full-body workout journal (sets, weights, reps, progress, y
 
 ## Current status
 - Done: live and working (last deploy 2026-11-08: exercise card, weekly sets, short bot report). Both live URLs answer.
-- In progress: the owner chose to build a separate app instead of growing the mini app — FORMA in `forma/` (first full version + accounts with sync 2026-11-11, server not deployed; status in `forma/CLAUDE.md`). The mini app and bot are untouched; the audit plan in `docs/IMPROVEMENT_ROADMAP.md` is on hold.
-- Git: folder connected to `origin` = `ineedaglokk/gym-log` (2026-11-07). Work branch `forma-app` (from `main` at c675c68), nothing committed: `forma/`, audit docs, CLAUDE.md, DEVLOG.md, .gitignore are uncommitted. `ОПИСАНИЕ.md` is local only (untracked).
+- In progress: the owner chose to build a separate app instead of growing the mini app — FORMA in `forma/` (live since 2026-11-11 at /gym-log/forma/ with its server forma-api on Cloudflare; status in `forma/CLAUDE.md`). The mini app and bot are untouched; the audit plan in `docs/IMPROVEMENT_ROADMAP.md` is on hold.
+- Git: folder connected to `origin` = `ineedaglokk/gym-log` (2026-11-07). FORMA committed and pushed to `main` (21a0f1a, 2026-11-11); work branch `forma-app`. Not committed on purpose: audit docs in `docs/` (public repo), `AGENTS.md`, `ОПИСАНИЕ.md` (local only).
 - Done 2026-11-07: progress v2 (noise band, 12-rep cap, month vs previous month, "Просело" only twice in a row) — live (commit b90fd56).
 - Done 2026-11-07: drop sets, supersets, replace with history choice + today's substitute, no «просело» after superset change / 2-week break — live (commit 36c145e).
 - Done 2026-11-07: exercise card (records by reps, chart, history), «Все упражнения» incl. removed (archive key `gone`), weekly sets per muscle, short bot report — live (pushed 2026-11-08).
-- Next step: FORMA — owner's review, then deploy (see `forma/CLAUDE.md`). Mini app: none set (effort tap from docs/analysis-2026-11.md is still open).
+- Next step: FORMA — owner's review on the phone, then fixes (see `forma/CLAUDE.md`). Mini app: none set (effort tap from docs/analysis-2026-11.md is still open).
 - Open issues: records saved while the cloud is down or a cloud write fails can be lost on the next start (audit D1–D2); `app.js` ~1780 lines (split by screen = separate task); KV free tier caps bot users. Details in DEVLOG.

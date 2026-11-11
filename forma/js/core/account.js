@@ -12,7 +12,8 @@ function devApi() {
   const host = globalThis.location?.hostname || "";
   return DEV_HOST.test(host) ? `http://${host}:${DEV_API_PORT}` : "";
 }
-export const apiUrl = () => (API_URL || devApi()).replace(/\/+$/, "");
+/* a copy opened for development talks to the local server, so testing never touches real accounts */
+export const apiUrl = () => (devApi() || API_URL).replace(/\/+$/, "");
 /* false until a server exists: the app then works as before, without accounts */
 export const accountsOn = () => !!apiUrl();
 export const account = () => getMeta("@account");

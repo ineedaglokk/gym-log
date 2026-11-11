@@ -1,14 +1,14 @@
-/* Offline cache for FORMA. Code and styles: network first (a fresh version always wins, the cache is the
-   fallback without a connection). Exercise photos and fonts: cache first — they never change.
+/* Offline cache for FORMA. Code and styles: network first, revalidated with the server every time (a fresh
+   version always wins right after a deploy; the cache is the fallback without a connection). Exercise photos and fonts: cache first — they never change.
    Other origins' API calls (Open Food Facts, the FORMA server) are not touched. */
 
-const VERSION = "forma-v1";
+const VERSION = "forma-v2";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png",
   "css/base.css", "css/components.css", "css/screens-day.css", "css/screens-gym.css", "css/screens-food.css", "css/screens-more.css",
   "shared/cat.js", "shared/progress.js", "js/main.js"];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
@@ -32,7 +32,8 @@ self.addEventListener("fetch", e => {
       return res;
     }
     try {
-      const res = await fetch(req);
+      /* "no-cache": the browser asks the server whether the file changed (a cheap 304 when it did not) */
+      const res = await (req.mode === "navigate" ? fetch(req.url, { cache: "no-cache", credentials: "same-origin" }) : fetch(req, { cache: "no-cache" }));
       if (res.ok) cache.put(req, res.clone());
       return res;
     } catch (err) {
